@@ -2,6 +2,56 @@
 
 Date : 2026-09-27 (Europe/Paris), mise à jour soir.
 
+## Session 8 (2026-09-27) — réécriture totale du GUI en PySide6
+
+- **Tkinter supprimé** (`romget/gui/` retiré) ; `romget/gui_qt/` devient le seul
+  GUI. `romget/gui/games_data.py` déplacé vers `romget/catalog.py` (imports
+  `romget.gui.games_data` → `romget.catalog` dans les tests).
+- **Architecture Qt** : `gui_qt/theme.py` (palette + QSS complet), `workers.py`
+  (`Worker` générique thread-safe + `CoverService` avec cache/dédup/signal
+  `loaded`), `toasts.py`, `cards.py` (`GameCard` : cover, titre élidé 2 lignes,
+  badges, hover zoom, cascade), `grid.py` (`CardGrid` : QScrollArea + reflow +
+  état vide), `pages/` (gamelist/search/library/downloads/settings),
+  `dialogs.py` (sélection fichiers distants, détails locaux, jaquette),
+  `app.py` (`MainWindow` : sidebar 6 entrées, `_JobHub` Signal(str, object)
+  pour le DownloadManager, `main()` argparse).
+- **Parité fonctionnelle** avec le GUI Tkinter : recherche multi-sources avec
+  pager et filtre source, recommandés (20/jour), top PS2 filtrable par genre,
+  bibliothèque (scan 2 dossiers, CHD, doublons, CSV), téléchargements
+  (QAbstractTableModel, pause/reprise/annulation), paramètres (dont
+  `download_dir`), SRM, diagnostic.
+- **Packaging** : `pyproject.toml` → dépendance `PySide6>=6.6`, dev
+  `pytest-qt`, entry point `romget-gui = romget.gui_qt.app:main` ;
+  `install.sh` vérifie PySide6 (plus tkinter/ImageTk) ; doctor CLI sonde
+  `pyside6`.
+- **Tests GUI portés sur pytest-qt** (`tests/gui/test_gui.py`, 5 tests,
+  fixture `window(qtbot, tmp_path)`, `QT_QPA_PLATFORM=offscreen`) : ils
+  tournent **dans le sandbox, sans display** (plus besoin de permissions
+  étendues). `MainWindow(config, start_workers=False)` pour les tests.
+- **Validation** : 86 tests + 10 sous-tests verts, ruff propre, captures des
+  6 pages dans `docs/validation/qt/` (`tools/gui_visual_check.py` réécrit :
+  `QWidget.grab()` par page, `--workers` pour covers réelles).
+- Attention : une session parallèle touche aussi `gui_qt/` (wording pages) —
+  vérifier `git status` avant commit.
+
+## Session 7 (2026-09-27) — multi-sources et pertinence
+
+- MiNERVA intégré : catalogue HTML PS2 validé (12 157 entrées), cache 24 h,
+  ouverture explicite de la fiche torrent ; aucun transfert torrent automatique.
+  API de recherche MiNERVA testée mais expirée : catalogue HTML utilisé.
+- IA + MiNERVA interrogés en parallèle, isolation des pannes, sélecteur GUI et
+  CLI `--source all|ia_redump|minerva`, pagination par source avec `has_more`.
+- Pertinence : mots entiers, accents et numérotation romaine/arabe, suites
+  distinguées ; exclusion par défaut des assets/presse/démos/prototypes ;
+  filtres titre/région/langue appliqués au même fichier des packs IA.
+- Déduplication par empreintes complètes, sinon noms/titres/tailles exacts ;
+  marge de 5 % retirée, copies conservées sous forme de liens alternatifs.
+- Limites : déduplication par page ; MiNERVA sans hashes ni tailles exactes,
+  donc rapprochement IA/MiNERVA non forcé. Voir `docs/SOURCES.md`.
+- Validation : tests métier/CLI, contrôles Tkinter, trois recherches réelles
+  multi-sources sans transfert de ROM. Les tests Tkinter réussissent mais
+  émettent des messages de callbacks d'animation à la destruction des fenêtres.
+
 ## Session 6 ter (2026-09-27) — git initialisé + POC PySide6
 
 - **D1 levé** (décision utilisateur) : commit initial sur `master`, branche
@@ -138,7 +188,7 @@ Améliorations demandées : vitesse de recherche, obtention des covers, pertinen
 - Validation visuelle GUI faite en session 3 (6 onglets, `docs/validation/`) ; le téléchargement réel d'une archive reste à valider manuellement.
 
 ## Contexte retenu
-Application Python PS2 avec GUI Tkinter, recherche Internet Archive, identification Redump, jaquettes SteamGridDB, lancement PCSX2 et accompagnement manuel Steam ROM Manager. Préserver les variantes et mods, notamment GT4 Europe et Spec II. Ne pas arrêter Steam. Le handoff décrit l'environnement historique, qui doit être distingué de l'environnement réellement accessible.
+Application Python PS2 avec GUI PySide6 (Tkinter supprimé en session 8), recherche Internet Archive + MiNERVA, identification Redump, jaquettes SteamGridDB, lancement PCSX2 et accompagnement manuel Steam ROM Manager. Préserver les variantes et mods, notamment GT4 Europe et Spec II. Ne pas arrêter Steam. Le handoff décrit l'environnement historique, qui doit être distingué de l'environnement réellement accessible.
 
 ## État observé au début de l'audit
 - Sources et documents lus ; version déclarée 0.1.0.

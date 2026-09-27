@@ -1,18 +1,18 @@
 # romget
 
-Bibliothèque PS2 pour Linux : recherche Internet Archive à la demande, sélection explicite des éditions et disques, téléchargements vérifiés et reprenables, lancement PCSX2, jaquettes et ouverture de Steam ROM Manager.
+Bibliothèque PS2 pour Linux : recherche multi-sources Internet Archive et MiNERVA, sélection explicite des éditions et disques, téléchargements vérifiés et reprenables, lancement PCSX2, jaquettes et ouverture de Steam ROM Manager.
 
 ## Démarrer sur cette machine
 
 Les wrappers existants `romget` et `romget-gui` restent compatibles. Depuis le projet :
 
 ```bash
-./install.sh --system    # vérifie les dépendances système, n'installe rien
+./install.sh            # crée .venv et installe le paquet (GUI PySide6 inclus)
 ./run.sh                # GUI
 ./run.sh --cli doctor    # diagnostic local, sans réseau ni affichage de clé
 ```
 
-Sur une nouvelle installation : Python ≥ 3.11, Tkinter, puis `./install.sh`. Le script crée `.venv` et installe le paquet sans modifier Python système. Si venv/pip n'est pas disponible, installer son paquet de distribution ou utiliser le mode système avec requests et Pillow. La conversion optionnelle requiert `chdman` ; le lancement requiert un émulateur/configuration PCSX2 déjà fonctionnels.
+Sur une nouvelle installation : Python ≥ 3.11 avec venv/pip, puis `./install.sh`. Le script crée `.venv` et installe le paquet (requests, Pillow, PySide6) sans modifier Python système. La conversion optionnelle requiert `chdman` ; le lancement requiert un émulateur/configuration PCSX2 déjà fonctionnels.
 
 ## Configuration
 
@@ -24,6 +24,8 @@ Un fichier alternatif s'utilise avec `romget --config /chemin/config.toml …` o
 
 ```bash
 romget search 'gran turismo 4' --region Europe --language Fr
+romget search 'final fantasy x' --source minerva
+romget search 'god of war 2' --source ia_redump
 romget search 'gran turismo 4' --page 2 --limit 20
 romget inspect IDENTIFIANT_IA
 romget download IDENTIFIANT_IA --file 'Nom exact.iso' --dry-run
@@ -42,6 +44,8 @@ romget --json doctor
 ```
 
 `--all` sélectionne explicitement tous les fichiers d'un item, y compris ses différentes éditions. `--chd --media cd|dvd` permet la conversion après un téléchargement CLI. `--enqueue` enregistre seulement la tâche ; la GUI ou `jobs run` l'exécute. `--json`, `--config` et `--verbose` précèdent la commande. Codes : 0 succès, 1 échec d'opération, 2 arguments/configuration invalides, 130 interruption.
+
+La recherche interroge les sources activées en parallèle. MiNERVA ouvre une fiche torrent à utiliser dans un client externe ; la file de téléchargement romget reste réservée à Internet Archive. `--limit` s’applique par source. Voir [les sources et filtres](docs/SOURCES.md) pour la configuration, les vérifications et les limites de déduplication.
 
 ## Comportements importants
 

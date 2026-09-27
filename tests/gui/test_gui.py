@@ -1,80 +1,102 @@
-"""Tests réels Tkinter, sans réseau, émulateur ni écritures dans la bibliothèque utilisateur."""
+"""Tests GUI Qt (offscreen), sans réseau, émulateur ni écritures dans la bibliothèque utilisateur."""
 
-import tempfile
-import threading
-import time
-import tkinter as tk
-import unittest
-from pathlib import Path
+import os
 
-from romget.config import Config
-from romget.gui.app import RomgetApp
-from romget.models import IAGame, SearchResult
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from pathlib import Path  # noqa: E402
+from unittest.mock import patch  # noqa: E402
 
-class GuiTests(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
-        (self.root / "Game.iso").write_bytes(b"image")
-        config = Config(
-            ps2_dir=self.root, state_dir=self.root / "state", source=self.root / "config.toml"
-        )
-        self.app = RomgetApp(config, start_workers=False)
-        self.app.root.update()
-        self.addCleanup(self.close)
+import pytest  # noqa: E402
 
-    def close(self):
-        self.app.close()
+pytest.importorskip("PySide6")
+pytest.importorskip("pytestqt")
 
-    def test_tabs_and_responsive_grid(self):
-        self.assertEqual(len(self.app.notebook.tabs()), 6)
-        self.app.notebook.select(self.app.tab_recommended)
-        self.app.root.update()
-        self.assertEqual(len(self.app.tab_recommended.grid.cards), 20)
-        self.app.root.geometry("800x600")
-        self.app.root.update()
-        small = self.app.tab_recommended.grid.columns
-        self.app.root.geometry("1400x900")
-        self.app.root.update()
-        self.assertGreater(self.app.tab_recommended.grid.columns, small)
+from PySide6.QtCore import QThread  # noqa: E402
+from PySide6.QtWidgets import QDialog, QPushButton  # noqa: E402
 
-    def test_stale_search_is_ignored(self):
-        tab = self.app.tab_search
-        tab.generation = 2
-        game = IAGame("fixture", "Title", "Title", [], None, 0)
-        tab.show(SearchResult(games=[game]), 1)
-        self.assertEqual(len(tab.grid.cards), 0)
-        tab.show(SearchResult(games=[game]), 2)
-        self.assertEqual(len(tab.grid.cards), 1)
-
-    def test_worker_error_delivered_on_gui_thread(self):
-        delivered = []
-        gui_thread = threading.get_ident()
-
-        def fail():
-            raise ValueError("fixture failure")
-
-        self.app.dispatch.submit(
-            fail, lambda value: None, lambda error: delivered.append((error, threading.get_ident()))
-        )
-        deadline = time.monotonic() + 2
-        while not delivered and time.monotonic() < deadline:
-            self.app.root.update()
-            time.sleep(0.01)
-        self.assertEqual(delivered, [("fixture failure", gui_thread)])
-
-    def test_source_selection_dialog(self):
-        game = IAGame("fixture", "Title", "Title", [{"name": "disc.iso", "size": 6}], "disc.iso", 6)
-        self.app.details(game)
-        self.app.root.update()
-        windows = [
-            child for child in self.app.root.winfo_children() if isinstance(child, tk.Toplevel)
-        ]
-        self.assertEqual(len(windows), 1)
-        windows[0].destroy()
+from romget.config import Config  # noqa: E402
+from romget.gui_qt.app import MainWindow  # noqa: E402
+from romget.models import IAGame, SearchResult  # noqa: E402
 
 
-if __name__ == "__main__":
-    unittest.main()
+@pytest.fixture
+def window(qtbot, tmp_path):
+    (tmp_path / "Game.iso").write_bytes(b"image")
+    config = Config(
+        ps2_dir=tmp_path, state_dir=Path(tmp_path) / "state", source=Path(tmp_path) / "config.toml"
+    )
+    win = MainWindow(config, start_workers=False)
+    qtbot.addWidget(win)
+    win.show()
+    return win
+
+
+def test_tabs_and_responsive_grid(window, qtbot):
+    assert window.sidebar.count() == 6
+    window.sidebar.setCurrentRow(1)
+    assert len(window.tab_recommended.grid.cards) == 20
+    window.resize(800, 600)
+    qtbot.wait(100)
+    small = window.tab_recommended.grid.columns
+    window.resize(1400, 900)
+    qtbot.wait(100)
+    assert window.tab_recommended.grid.columns > small
+
+
+def test_stale_search_is_ignored(window):
+    tab = window.tab_search
+    tab.generation = 2
+    game = IAGame("fixture", "Title", "Title", [], None, 0)
+    tab.show(SearchResult(games=[game]), 1)
+    assert len(tab.grid.cards) == 0
+    tab.show(SearchResult(games=[game]), 2)
+    assert len(tab.grid.cards) == 1
+
+
+def test_worker_error_delivered_on_gui_thread(window, qtbot):
+    delivered = []
+
+    def fail():
+        raise ValueError("fixture failure")
+
+    window.worker.submit(
+        fail,
+        lambda value: None,
+        lambda error: delivered.append((error, QThread.currentThread())),
+    )
+    qtbot.waitUntil(lambda: bool(delivered), timeout=2000)
+    assert delivered[0][0] == "fixture failure"
+    assert delivered[0][1] == window.thread()
+
+
+def test_external_source_dialog_opens_only_on_click(window):
+    game = IAGame(
+        "minerva-123",
+        "Game",
+        "Game",
+        [],
+        None,
+        0,
+        source="minerva",
+        source_url="https://minerva-archive.org/rom?id=123",
+        external=True,
+    )
+    with patch("romget.gui_qt.dialogs.webbrowser.open") as browser:
+        dialog = window.details(game)
+        assert isinstance(dialog, QDialog)
+        browser.assert_not_called()
+        buttons = [b for b in dialog.findChildren(QPushButton)]
+        assert not any("file" in button.text() for button in buttons)
+        next(button for button in buttons if button.text() == "Ouvrir la fiche MiNERVA").click()
+        browser.assert_called_once_with(game.source_url)
+        dialog.close()
+    assert window.store.list() == []
+
+
+def test_source_selection_dialog(window):
+    game = IAGame("fixture", "Title", "Title", [{"name": "disc.iso", "size": 6}], "disc.iso", 6)
+    dialog = window.details(game)
+    assert isinstance(dialog, QDialog)
+    assert dialog.table.rowCount() == 1
+    dialog.close()

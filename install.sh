@@ -10,10 +10,7 @@ python3 -m venv .venv || {
     echo 'venv/pip indisponible. Installer leur paquet système.' >&2; exit 1;
 }
 .venv/bin/python -m pip install --editable .
-.venv/bin/python -c 'import tkinter' || {
-    echo 'Tkinter manque : installer le paquet Tkinter de la distribution.' >&2; exit 1;
-}
-.venv/bin/python -c 'from PIL import ImageTk' || {
-    echo 'Pillow sans ImageTk : réinstaller Pillow dans le venv.' >&2; exit 1;
+.venv/bin/python -c 'from PySide6 import QtWidgets' || {
+    echo 'PySide6 incomplet : réinstaller le paquet dans le venv.' >&2; exit 1;
 }
 echo 'Installation terminée : .venv/bin/romget ou .venv/bin/romget-gui'

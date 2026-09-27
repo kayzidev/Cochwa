@@ -150,7 +150,7 @@ def doctor(config):
         "launcher_exists": config.launcher.is_file(),
         "chdman": shutil.which("chdman"),
         "flatpak": shutil.which("flatpak"),
-        "tkinter": bool(importlib.util.find_spec("tkinter")),
+        "pyside6": bool(importlib.util.find_spec("PySide6")),
         "pillow": bool(importlib.util.find_spec("PIL")),
         "artwork_key_configured": bool(config.steamgrid_api_key),
         "cache": str(config.cache_dir),

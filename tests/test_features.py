@@ -8,13 +8,13 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 from romget.api.steamgriddb import _title_variants
-from romget.config import Config
-from romget.gui.games_data import (
+from romget.catalog import (
     catalog_entries,
     recommended_entries,
     recommended_pool,
     top_entries,
 )
+from romget.config import Config
 from romget.models import IAGame
 from romget.services.conversion import convert_all_chd
 from romget.services.index import LibraryIndex
@@ -132,8 +132,8 @@ class CatalogTests(unittest.TestCase):
                 json.dumps({"games": [{"title": "Custom Game (Europe)", "genre": "Test"}]})
             )
             with (
-                patch("romget.gui.games_data.USER_CATALOG", user_file),
-                patch.dict("romget.gui.games_data._cache", {"entries": None, "mtime": 0.0}),
+                patch("romget.catalog.USER_CATALOG", user_file),
+                patch.dict("romget.catalog._cache", {"entries": None, "mtime": 0.0}),
             ):
                 titles = [e["title"] for e in catalog_entries()]
             self.assertIn("Custom Game (Europe)", titles)

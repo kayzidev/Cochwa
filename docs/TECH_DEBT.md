@@ -10,6 +10,13 @@ reporté sur décision utilisateur ; D3 réduit au renouvellement de la clé SGD
 (action utilisateur). Suite : 55 tests unitaires + 4 tests GUI verts, ruff
 lint+format propres, 4 tests d'intégration réseau réels validés.
 
+**Mise à jour 2026-09-27 (session 8)** : réécriture totale du GUI en PySide6
+(Tkinter supprimé, D4 devenue sans objet). Tests GUI portés sur pytest-qt en
+offscreen — ils tournent dans le sandbox, sans display. Suite : 86 tests +
+10 sous-tests verts, ruff propre, captures Qt dans `docs/validation/qt/`.
+Reste : fusionner `poc-pyside6` dans `master` et vérifier la CI (elle
+installe peut-être encore des paquets Tk/xvfb inutiles).
+
 ## 1. Point sur la dette technique
 
 ### Critique
