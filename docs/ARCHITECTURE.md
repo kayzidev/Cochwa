@@ -18,11 +18,16 @@ flowchart TD
 ```
 
 - `models.py` : résultats et identité source ; aucune dépendance UI.
+- `consoles.py` : registre des consoles (capacités, extensions, chemins par défaut) et `SearchProfile` — la stratégie de pertinence plateforme (termes exclus, collections IA) vit ici, pas dans les services.
 - `infrastructure/` : sessions HTTP par thread, retries bornés, chemins confinés, fichiers temporaires et verrous interprocessus.
-- `services/search.py` : pagination source, cache metadata, filtres et suggestions. Un pool global de quatre workers limite les metadata ; les verrous de cache dédupliquent les requêtes concurrentes.
+- `providers/ia_redump.py` : recherche IA paginée, cache metadata, identification Redump et ranking, alimentés par le `SearchProfile` de la console. Un pool global de workers limite les metadata ; les verrous de cache dédupliquent les requêtes concurrentes.
+- `providers/ia_switch.py` et `providers/minerva.py` : sources Switch (NSP/XCI directs) et catalogue externe MiNERVA.
+- `services/search.py` : orchestration pure — sélection des sources par plateforme, dispatch parallèle, isolation des pannes, dédup et fusion des suggestions.
 - `services/download.py` : un fichier, sa provenance, sa reprise et sa validation. Échec = pas de publication finale. Aucun écrasement automatique des données existantes.
-- `services/jobs.py` : sélections explicites persistées, un moteur actif par dossier d'état, pause/reprise et manifeste. Une sélection inachevée reste marquée pending et hors bibliothèque jouable.
-- `services/library.py` et `index.py` : scan local, groupes CUE/pistes, manifestes et vérifications persistantes liées à taille/mtime. Un hash inconnu reste inconnu, notamment pour les mods.
+- `services/jobs.py` : sélections explicites persistées, un moteur actif par dossier d'état, pause/reprise/suppression et manifeste. Une sélection inachevée reste marquée pending et hors bibliothèque jouable.
+- `services/library.py` et `index.py` : scan local incrémental (snapshot `(path, size, mtime_ns)` en cache sqlite, invalidé à tout changement), groupes CUE/pistes, manifestes et vérifications persistantes liées à taille/mtime. Un hash inconnu reste inconnu, notamment pour les mods.
+- `services/maintenance.py` : purge bornée des caches au démarrage (metadata IA expirées, marqueurs négatifs SGDB périmés ; jaquettes positives permanentes).
+- `config.py` : chemins indexés par `console.id` (`console_dirs`/`console_launchers`, TOML `[roms] <id>_dir` / `[app] <id>_launcher`), sérialisation via `tomli-w`.
 - `gui/events.py` : seul le thread GUI appelle Tk. Les workers retournent des données via une queue ; les recherches périmées sont ignorées. Les dialogues et paramètres sont séparés de la composition de fenêtre.
 
 ## Formats et compatibilité

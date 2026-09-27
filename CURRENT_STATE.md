@@ -2,6 +2,32 @@
 
 Date : 2026-09-27 (Europe/Paris), mise à jour soir.
 
+## Session 13 (2026-09-27) — scalabilité : plan P1/P2/P3 de l'audit
+
+- **P1 (S2)** : `SearchProfile` dans `consoles.py` (termes exclus, collections
+  IA, regex héritée — profils PS2 et Switch) ; `providers/ia_redump.py` devient
+  le vrai provider (Solr, metadata, ranking, cache) alimenté par le profil ;
+  `services/search.py` = orchestration pure (composition, dispatch parallèle,
+  isolation des pannes, dédup) ; `ia_ps2_search.py` (session 12) fusionné et
+  supprimé ; `providers/base.py` aligné sur la signature riche.
+- **P2 (S1 + M1)** : `Config.console_dirs`/`console_launchers` indexés par
+  `console.id` ; TOML `[roms] <id>_dir` et `[app] <id>_launcher` (alias legacy
+  `launcher` migré) ; propriétés de compatibilité conservées ; page Paramètres
+  générée depuis `CONSOLES` (section dépliée pour la console par défaut,
+  repliée sinon) ; `EXTENSIONS` supprimé de `services/library.py` (registre =
+  source unique) ; tests `console.id == "ps2"` remplacés par les capacités
+  `disc_based` / `log_name` du registre.
+- **P3 (M4 + M2 + M5 + S3)** : CLI `--console ps2|switch` sur `list`/`play`/
+  `doctor` (doctor rapporte chaque console) ; `services/maintenance.py` purge
+  les metadata IA expirées et les marqueurs négatifs SGDB au démarrage GUI/CLI
+  (jaquettes positives permanentes) ; `tomli-w` remplace le sérialiseur TOML
+  maison ; scan incrémental via table sqlite `scan_cache` (snapshot
+  `(path, size, mtime_ns)` + contenu de l'index, cache hit sans rescan).
+- Conflit de sessions géré : la session parallèle (provider Switch + SRM) a
+  été commitée d'abord (`d08ab01`), puis P1/P2/P3 rebasés par-dessus.
+- Validation : 133 tests + 10 sous-tests verts, ruff lint/format propres,
+  captures GUI régénérées (`docs/validation/cochwa/`).
+
 ## Session 12 (2026-09-27) — plateformes, sources Switch et préréglages Steam
 
 - Premier logo « Portail » de la planche retenu (SVG arrondi, sans oreille).
@@ -9,8 +35,9 @@ Date : 2026-09-27 (Europe/Paris), mise à jour soir.
   mémorisés par plateforme ; vues bibliothèque, transferts et paramètres adaptées.
 - Recherche Switch IA vérifiée sur métadonnées réelles ; fichiers NSP/XCI directs,
   archives identifiées en ouverture externe, mises à jour/DLC distingués.
-- Implémentation PS2 conservée dans `providers/ia_ps2_search.py` ; orchestration
-  commune `SearchService`, backend Switch distinct, Redump limité à la PS2.
+- Implémentation PS2 déplacée dans `providers/ia_redump.py` (session 13) ;
+  orchestration commune `SearchService`, backend Switch distinct, Redump limité
+  à la PS2.
 - Suppression de tâche via bouton et menu contextuel ; arrêt coordonné du worker,
   fichiers conservés et protection contre les écritures tardives de progression.
 - Assistant SRM dans Paramètres : aperçu, configurations PS2/Switch et manifestes

@@ -23,6 +23,14 @@ renommer le dossier du projet `~/Games/scripts/cochwa` (touche les wrappers
 et le remote local — décision utilisateur), et implémenter la console Switch
 (registre `consoles.py` prêt, UI en place).
 
+**Mise à jour 2026-09-27 (session 13)** : chantiers de scalabilité de l'audit
+soldés — **S2** (stratégie plateforme dans `SearchProfile` + vrai provider
+`providers/ia_redump.py`, `SearchService` = orchestration pure), **S1** (config
+générique par `console.id`, settings générés depuis le registre), **M1**
+(extensions en source unique dans le registre), **M4** (CLI `--console`),
+**M2** (purge des caches au démarrage), **M5** (`tomli-w`), **S3** (scan
+incrémental sqlite). Suite : 133 tests + 10 sous-tests verts, ruff propre.
+
 ## 1. Point sur la dette technique
 
 ### Critique
@@ -47,17 +55,21 @@ et le remote local — décision utilisateur), et implémenter la console Switch
 
 ### Faible / accepté
 
-- `cli.py` (351 lignes) encore partiellement lié au provider historique — unification CLI/GUI déjà recommandée par l'audit.
-- Cache metadata IA en JSON par item (TTL 3600) — suffisant à cette échelle.
+- `cli.py` unifié sur les services ; `--console ps2|switch` sur `list`/`play`/`doctor` (session 13 — M4 soldé).
+- Cache metadata IA en JSON par item (TTL 3600) — suffisant à cette échelle ; fichiers expirés purgés au démarrage (session 13 — M2 soldé).
+- Sérialisation TOML confiée à `tomli-w` (session 13 — M5 soldé, sérialiseur maison supprimé).
 - P0 de l'audit initial (suppression disques non convertis, reprise HTTP, confinement chemins) : corrigés dans la refonte 0.2 selon `docs/ARCHITECTURE.md`, à re-vérifier par tests ciblés.
 
 ## 2. Points d'amélioration
 
 **Recherche** : détection plateforme via les fichiers réels (extensions .iso/.chd vs .apk/.pbp) plutôt que le titre ;
-pagination infinie dans l'onglet Recherche.
+pagination infinie dans l'onglet Recherche. Ajouter une console = entrée
+registre + `SearchProfile` + provider branché dans `SearchService` (P1/P2
+soldés, session 13).
 
 **Covers** : cache disque permanent (`covers/<hash>.png`) — les jaquettes ne sont
-jamais re-téléchargées entre les lancements ; cache négatif 24 h (session 4).
+jamais re-téléchargées entre les lancements ; cache négatif 24 h (session 4),
+marqueurs périmés purgés au démarrage (session 13).
 
 **Téléchargements** : extraction d'archives en cours de téléchargement (streaming 7z impossible — rester en post-download).
 
