@@ -1,0 +1,30 @@
+---
+description: Charte graphique Cochwa — source de vérité visuelle pour toute l'interface
+alwaysApply: true
+---
+
+# Charte graphique Cochwa (standard officiel)
+
+`CHARTE_GRAPHIQUE.md` (racine) et `PlancheGraphique.png` sont la **source de
+vérité visuelle** de Cochwa. Les consulter avant de créer ou modifier tout
+composant graphique.
+
+## Tokens officiels (à réutiliser, ne jamais inventer de couleur)
+
+- `primary` #7567FF (violet, couleur principale) · `secondary` #FF7867 (corail,
+  accent seulement) · `success` #5EE6B1 · `warning` #FFBE55 · `error` #FF5D70
+- `background` #11131A · `surface` #191C26 · `surfaceElevated` #222633 ·
+  `text` #F4F5FA · `textMuted` #969BAD
+- Thème dark ; police **Geist** ; rayons 8/10/12/16 px ; bordures discrètes
+  `1px solid rgba(255,255,255,0.06)` ; ombres légères ; dégradé de marque
+  `#7567FF → #9A62FF → #FF7867` avec parcimonie.
+- Implémentation Qt : tokens centralisés dans `cochwa/gui_qt/theme.py`.
+
+## Règles
+
+1. Réutiliser les tokens existants ; pas de nouvelle couleur sans justification.
+2. Pas de nouveau style de bouton/composant s'il existe un équivalent.
+3. Cohérence entre toutes les pages ; simplicité plutôt qu'effets.
+4. Accessibilité : contrastes, focus clavier, jamais d'info par la couleur seule.
+5. Pas de pixel art, manettes génériques, néon excessif, ni imitation de marque.
+6. L'UI reste sobre : ce sont les jaquettes des jeux qui portent la couleur.
