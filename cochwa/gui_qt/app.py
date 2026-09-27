@@ -33,6 +33,7 @@ from cochwa.gui_qt.pages.gamelist import RecommendedPage, TopPage
 from cochwa.gui_qt.pages.library import LibraryPage
 from cochwa.gui_qt.pages.search import SearchPage
 from cochwa.gui_qt.pages.settings import SettingsPage
+from cochwa.gui_qt.pages.support import SupportPage
 from cochwa.gui_qt.toasts import ToastManager
 from cochwa.gui_qt.workers import CoverService, Worker
 from cochwa.services.index import LibraryIndex
@@ -50,7 +51,7 @@ class MainWindow(QMainWindow):
     def __init__(self, config=None, *, start_workers=True):
         super().__init__()
         self.config = config or Config.load()
-        self.setWindowTitle("Cochwa — Bibliothèque PS2")
+        self.setWindowTitle(f"Cochwa — Bibliothèque {DEFAULT_CONSOLE.name}")
         self.resize(1150, 800)
         self.setMinimumSize(800, 600)
         self.closing = False
@@ -83,6 +84,7 @@ class MainWindow(QMainWindow):
         self.tab_library = LibraryPage(self)
         self.tab_downloads = DownloadsPage(self)
         self.tab_settings = SettingsPage(self)
+        self.tab_support = SupportPage(self)
         for page, label in [
             (self.tab_search, "◎ Rechercher"),
             (self.tab_recommended, "◆ Recommandés"),
@@ -90,6 +92,7 @@ class MainWindow(QMainWindow):
             (self.tab_library, "▤ Bibliothèque"),
             (self.tab_downloads, "⬇ Téléchargements"),
             (self.tab_settings, "⚙ Paramètres"),
+            (self.tab_support, "❓ Support"),
         ]:
             QListWidgetItem(label, self.sidebar)
             self.pages.addWidget(page)
@@ -123,8 +126,8 @@ class MainWindow(QMainWindow):
         self.logo.setFixedHeight(96)
         self.logo.setToolTip("Emplacement du futur logo Cochwa")
         layout.addWidget(self.logo)
-        # Sélecteur de console : seule la PS2 est active ; la Switch est un
-        # emplacement grisé en attendant son implémentation.
+        # Sélecteur de console : PS2 et Switch actives ; les consoles futures
+        # non implémentées restent grisées (« (bientôt) »).
         self.console_box = QComboBox()
         self.console_box.setObjectName("consoleSelect")
         for console in CONSOLES:
@@ -142,13 +145,22 @@ class MainWindow(QMainWindow):
         return panel
 
     def select_console(self, index):
-        """Point d'entrée multiconsole : aucune page ne dépend encore de la console."""
+        """Change de console : titre, bibliothèque et pages concernées suivent."""
         console = self.console_box.itemData(index)
         if not console or not console.enabled:
             self.console_box.setCurrentIndex(CONSOLES.index(self.console))
             return
+        if console is self.console:
+            return
         self.console = console
+        self.setWindowTitle(f"Cochwa — Bibliothèque {console.name}")
+        self.tab_library.refresh()
         self.activate(self.sidebar.currentRow())
+        self.notify(f"Console active : {console.name}")
+
+    def roms_dir(self):
+        """Dossier ROMs de la console active (None si non configuré)."""
+        return self.config.roms_dir(self.console)
 
     # -- Navigation -----------------------------------------------------
 
@@ -235,7 +247,7 @@ def main():
     import argparse
     from pathlib import Path
 
-    parser = argparse.ArgumentParser(description="Cochwa — GUI PS2")
+    parser = argparse.ArgumentParser(description="Cochwa — GUI")
     parser.add_argument("--config", type=Path)
     args = parser.parse_args()
     app = QApplication(sys.argv)

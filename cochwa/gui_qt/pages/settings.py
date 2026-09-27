@@ -35,12 +35,24 @@ class SettingsPage(QWidget):
         self._form = form
         self._row("directory", "Dossier PS2", str(app.config.ps2_dir), browse=self._pick_directory)
         self._row(
+            "switch_directory",
+            "Dossier Switch",
+            str(app.config.switch_dir or ""),
+            browse=self._pick_switch_directory,
+        )
+        self._row(
             "download",
             "Téléchargements (vide = dossier PS2)",
             str(app.config.download_dir or ""),
             browse=self._pick_download,
         )
         self._row("launcher", "Lanceur PCSX2", str(app.config.launcher), browse=self._pick_launcher)
+        self._row(
+            "switch_launcher",
+            "Lanceur Switch (Ryubing)",
+            str(app.config.switch_launcher or ""),
+            browse=self._pick_switch_launcher,
+        )
         self._row("key", "Clé SteamGridDB", app.config.steamgrid_api_key, password=True)
         layout.addLayout(form)
 
@@ -94,6 +106,15 @@ class SettingsPage(QWidget):
         if path:
             self.values["directory"].setText(path)
 
+    def _pick_switch_directory(self):
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Dossier Switch",
+            str(self.app.config.switch_dir or Path.home()),
+        )
+        if path:
+            self.values["switch_directory"].setText(path)
+
     def _pick_download(self):
         path = QFileDialog.getExistingDirectory(
             self,
@@ -108,11 +129,26 @@ class SettingsPage(QWidget):
         if path:
             self.values["launcher"].setText(path)
 
+    def _pick_switch_launcher(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Script ou exécutable Ryubing (Switch)")
+        if path:
+            self.values["switch_launcher"].setText(path)
+
     def save(self):
         root = Path(self.values["directory"].text()).expanduser()
         if not root.is_dir():
             self.app.error("Choisir un dossier existant ; vérifier son disque avant de continuer")
             return
+        switch = self.values["switch_directory"].text().strip()
+        switch_dir = None
+        if switch:
+            switch_dir = Path(switch).expanduser()
+            if not switch_dir.is_dir():
+                self.app.error("Dossier Switch inexistant : " + switch)
+                return
+            switch_dir = switch_dir.absolute()
+        switch_launcher = self.values["switch_launcher"].text().strip()
+        switch_launcher = Path(switch_launcher).expanduser().absolute() if switch_launcher else None
         download = self.values["download"].text().strip()
         download_dir = None
         if download:
@@ -122,11 +158,20 @@ class SettingsPage(QWidget):
                 return
             download_dir = download_dir.absolute()
         config = self.app.config
-        previous = (config.ps2_dir, config.download_dir, config.launcher, config.steamgrid_api_key)
+        previous = (
+            config.ps2_dir,
+            config.switch_dir,
+            config.download_dir,
+            config.launcher,
+            config.switch_launcher,
+            config.steamgrid_api_key,
+        )
         try:
             config.ps2_dir = root.absolute()
+            config.switch_dir = switch_dir
             config.download_dir = download_dir
             config.launcher = Path(self.values["launcher"].text()).expanduser().absolute()
+            config.switch_launcher = switch_launcher
             config.steamgrid_api_key = self.values["key"].text().strip()
             config.save()
             self.app.covers.results.clear()
@@ -135,8 +180,10 @@ class SettingsPage(QWidget):
         except Exception as exc:
             (
                 config.ps2_dir,
+                config.switch_dir,
                 config.download_dir,
                 config.launcher,
+                config.switch_launcher,
                 config.steamgrid_api_key,
             ) = previous
             self.app.error(str(exc))

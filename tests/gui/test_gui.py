@@ -42,15 +42,62 @@ def test_console_selector_and_logo_placeholder(window):
         (window.console_box.itemText(i), window.console_box.model().item(i).isEnabled())
         for i in range(window.console_box.count())
     ]
-    assert states == [("PlayStation 2", True), ("Switch (bientôt)", False)]
-    # Sélection d'une console inactive : retour à la console courante.
+    assert states == [("PlayStation 2", True), ("Switch", True)]
+    # Bascule vers la Switch : titre de fenêtre et console active suivent.
     window.select_console(1)
+    assert window.console.id == "switch"
+    assert "Switch" in window.windowTitle()
+    window.select_console(0)
     assert window.console is DEFAULT_CONSOLE
-    assert window.console_box.currentIndex() == 0
+    assert "PlayStation 2" in window.windowTitle()
+
+
+def test_switch_library_uses_console_settings(window, tmp_path):
+    switch_dir = tmp_path / "switch"
+    switch_dir.mkdir()
+    (switch_dir / "Game [0100ABCD][v0][US].nsp").write_bytes(b"rom")
+    (switch_dir / "notes.txt").write_text("ignore")
+    window.config.switch_dir = switch_dir
+    window.select_console(1)
+    # Scan direct : seules les extensions Switch sont retenues.
+    from cochwa.services.library import scan
+
+    games = scan(switch_dir, extensions=window.console.rom_extensions)
+    assert [g.title for g in games] == ["Game [0100ABCD][v0][US]"]
+    # Dossier Switch non configuré : message explicite, pas de crash.
+    window.config.switch_dir = None
+    window.tab_library.refresh()
+    assert "non configuré" in window.tab_library.status.text()
+
+
+def test_voir_les_editions_declenche_la_recherche(window, qtbot):
+    """Régression : clicked(bool) ne doit pas écraser le titre du lambda."""
+    window.sidebar.setCurrentRow(1)  # Recommandés → cartes rendues
+    assert window.tab_recommended.grid.cards
+    card = window.tab_recommended.grid.cards[0]
+    with patch.object(window.search, "search", return_value=SearchResult()) as mock:
+        card.button.click()
+        assert window.sidebar.currentRow() == 0
+        expected = card.base_title
+        assert window.tab_search.query.text() == expected
+        qtbot.waitUntil(lambda: mock.called, timeout=2000)  # recherche en worker
+        assert mock.call_args.args[0] == expected
+
+
+def test_support_page_links(window):
+    from PySide6.QtWidgets import QPushButton
+
+    assert window.sidebar.count() == 7
+    window.sidebar.setCurrentRow(6)
+    buttons = [b.text() for b in window.tab_support.findChildren(QPushButton)]
+    assert any("PCSX2" in b for b in buttons)
+    assert any("Ryubing" in b for b in buttons)
+    assert any("Steam ROM Manager" in b for b in buttons)
+    assert any("GitHub" in b for b in buttons)
 
 
 def test_tabs_and_responsive_grid(window, qtbot):
-    assert window.sidebar.count() == 6
+    assert window.sidebar.count() == 7
     window.sidebar.setCurrentRow(1)
     assert len(window.tab_recommended.grid.cards) == 20
     window.resize(800, 600)

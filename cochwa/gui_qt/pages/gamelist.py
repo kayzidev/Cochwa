@@ -47,6 +47,12 @@ class GameListPage(QWidget):
 
     def render(self):
         self.grid.clear()
+        if self.app.console.id != "ps2":
+            self.grid.set_empty(
+                "Listes de découverte PS2 — le catalogue Switch arrivera avec sa "
+                "source de recherche. La bibliothèque Switch est dans l'onglet Bibliothèque."
+            )
+            return
         installed = set()
         for title in self.app.installed_titles():
             installed.add(title.casefold())

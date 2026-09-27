@@ -192,6 +192,10 @@ class LocalDetailsDialog(QDialog):
         convert = QPushButton("Convertir en CHD")
         convert.clicked.connect(self.convert)
         buttons.addWidget(convert)
+        # CHD = format disque : sans objet pour les ROMs cartouche (Switch).
+        if not app.console.disc_based:
+            self.media.setVisible(False)
+            convert.setVisible(False)
         folder = QPushButton("Ouvrir dossier")
         folder.clicked.connect(self.open_folder)
         buttons.addWidget(folder)
@@ -209,7 +213,7 @@ class LocalDetailsDialog(QDialog):
 
     def play(self):
         try:
-            process, log = launch(self.chosen(), self.app.config)
+            process, log = launch(self.chosen(), self.app.config, console=self.app.console)
             self.status.setText(f"Lancement demandé ; journal : {log}")
 
             def check():

@@ -2,6 +2,38 @@
 
 Date : 2026-09-27 (Europe/Paris), mise à jour soir.
 
+## Session 10 (2026-09-27) — fix « Voir les éditions » + Switch locale + page Support
+
+- **Fix « Voir les éditions »** : `QPushButton.clicked` émet un booléen `checked`
+  qui écrasait le paramètre par défaut des lambdas (`lambda t=title: …`
+  recevait `False` → crash). Correction centrale dans `GameCard` (relais qui
+  avale le booléen) — répare aussi « Choisir les fichiers » (Recherche) et
+  « ▶ Jouer / gérer » (Bibliothèque), même bug latent. Test de régression
+  (clic réel sur la carte → recherche déclenchée avec le bon titre).
+- **ROMs Switch (bibliothèque locale)** : `Console` enrichie (`rom_extensions`,
+  `roms_dir`, `launcher`, `emulator`, `emulator_url`, `disc_based`), Switch
+  **activée** dans le sélecteur. `Config.switch_dir` / `switch_launcher`
+  (TOML `[roms] switch_dir`, `[app] switch_launcher`, optionnels) + helpers
+  `roms_dir(console)` / `launcher_for(console)`. `scan()` paramétré par
+  extensions (`.nsp/.xci/.nca`), `launch()` par console (journal `switch.log`).
+  GUI : `select_console()` fonctionnel (titre fenêtre, refresh bibliothèque),
+  page Bibliothèque console-aware (CHD masqué hors consoles à disques, titres
+  Switch nettoyés via `util.clean_rom_title` — tags `[titleID][vX]` et
+  `(nsw2u.xyz)`), Paramètres : champs Dossier/Lanceur Switch. Recherche et
+  catalogues (Recommandés/Top) **restent PS2** : message explicite quand la
+  Switch est active — le provider de recherche Switch est la prochaine étape
+  (pas d'équivalent Redump branché).
+- **Page Support** (7ᵉ entrée sidebar « ❓ ») : liens émulateurs (PCSX2,
+  Ryubing — depuis le registre consoles), Steam ROM Manager, GitHub du projet
+  + page issues ; URLs copiables. `tools/gui_visual_check.py` : 7 captures.
+- **Fix annexe** : `ToastManager._restack` blindé contre la destruction de la
+  fenêtre (RuntimeError au teardown/fermeture).
+- Config utilisateur réelle mise à jour : Switch →
+  `/mnt/Backup-ROMs/Emulateurs/Switch/Games` + `~/Games/scripts/ryujinx/launch.sh`
+  (6 jeux détectés au scan réel). Clé SGDB et sections TOML préservées.
+- Suite : 92 tests + 10 sous-tests verts (x3 stables), ruff lint+format propres,
+  captures régénérées dans `docs/validation/qt/`.
+
 ## Session 9 (2026-09-27) — renommage Cochwa + base multiconsole
 
 - **Projet renommé Cochwa** : paquet `romget/` → `cochwa/` (imports, pyproject,

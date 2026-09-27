@@ -21,6 +21,7 @@ TABS = [
     "bibliotheque",
     "telechargements",
     "parametres",
+    "support",
 ]
 
 

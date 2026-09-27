@@ -52,6 +52,7 @@ class ProviderConfig:
 @dataclass
 class Config:
     ps2_dir: Path = field(default_factory=lambda: Path.home() / "Games/roms/ps2")
+    switch_dir: Path | None = None  # None = dossier Switch non configuré
     download_dir: Path | None = None  # None = télécharge dans ps2_dir
     steam_method: str = "srm"
     steamgrid_api_key: str = ""
@@ -63,6 +64,7 @@ class Config:
         }
     )
     launcher: Path = field(default_factory=lambda: Path.home() / "Games/scripts/pcsx2/launch.sh")
+    switch_launcher: Path | None = None  # None = lanceur Switch non configuré
     state_dir: Path = field(default_factory=lambda: DEFAULT_STATE_DIR)
     source: Path | None = field(default=None, repr=False)
 
@@ -70,6 +72,18 @@ class Config:
     def download_path(self):
         """Destination des téléchargements : download_dir sinon ps2_dir."""
         return self.download_dir or self.ps2_dir
+
+    def roms_dir(self, console):
+        """Dossier ROMs de la console ; None si la console n'est pas configurée."""
+        if console.id == "switch":
+            return self.switch_dir
+        return self.ps2_dir
+
+    def launcher_for(self, console):
+        """Script de lancement de la console ; None si non configuré."""
+        if console.id == "switch":
+            return self.switch_launcher
+        return self.launcher
 
     @property
     def cache_dir(self):
@@ -100,9 +114,15 @@ class Config:
             return result
 
         cfg.ps2_dir = Path(value("roms", "ps2_dir", str(cfg.ps2_dir))).expanduser().absolute()
+        switch_dir = value("roms", "switch_dir", "").strip()
+        cfg.switch_dir = Path(switch_dir).expanduser().absolute() if switch_dir else None
         download_dir = value("roms", "download_dir", "").strip()
         cfg.download_dir = Path(download_dir).expanduser().absolute() if download_dir else None
         cfg.launcher = Path(value("app", "launcher", str(cfg.launcher))).expanduser().absolute()
+        switch_launcher = value("app", "switch_launcher", "").strip()
+        cfg.switch_launcher = (
+            Path(switch_launcher).expanduser().absolute() if switch_launcher else None
+        )
         cfg.state_dir = Path(value("app", "state_dir", str(cfg.state_dir))).expanduser().absolute()
         cfg.steam_method = value("steam", "method", "srm")
         if cfg.steam_method != "srm":
@@ -149,6 +169,10 @@ class Config:
             with target.open("rb") as stream:
                 data = tomllib.load(stream)
         data.setdefault("roms", {}).update(ps2_dir=str(self.ps2_dir))
+        if self.switch_dir:
+            data["roms"]["switch_dir"] = str(self.switch_dir)
+        else:
+            data["roms"].pop("switch_dir", None)
         if self.download_dir:
             data["roms"]["download_dir"] = str(self.download_dir)
         else:
@@ -161,6 +185,10 @@ class Config:
         data.setdefault("app", {}).update(
             launcher=str(self.launcher), state_dir=str(self.state_dir)
         )
+        if self.switch_launcher:
+            data["app"]["switch_launcher"] = str(self.switch_launcher)
+        else:
+            data["app"].pop("switch_launcher", None)
         data["providers"] = {
             name: {"enabled": p.enabled, **p.options} for name, p in self.providers.items()
         }

@@ -20,7 +20,7 @@ from cochwa.services.conversion import convert_all_chd
 from cochwa.services.index import LibraryIndex
 from cochwa.services.library import InstalledGame, export_csv
 from cochwa.services.search import _dedupe
-from cochwa.util import human_duration
+from cochwa.util import clean_rom_title, human_duration
 
 
 def game(title, size, identifier="id"):
@@ -62,6 +62,21 @@ class HumanDurationTests(unittest.TestCase):
         self.assertEqual(human_duration(45), "45 s")
         self.assertEqual(human_duration(200), "3 min 20 s")
         self.assertEqual(human_duration(3720), "1 h 02 min")
+
+    def test_clean_rom_title_strips_switch_tags(self):
+        self.assertEqual(clean_rom_title("Pokémon Violet [01008F6008C5E000][V0]"), "Pokémon Violet")
+        self.assertEqual(
+            clean_rom_title("The Legend of Zelda Tears of the Kingdom [0100F2C0115B6000][v0][US]"),
+            "The Legend of Zelda Tears of the Kingdom",
+        )
+        # Tag de site entre parenthèses (domaine) retiré ; région conservée.
+        self.assertEqual(
+            clean_rom_title("Mario Party Superstars[01006FE013472000][v0](nsw2u.xyz)"),
+            "Mario Party Superstars",
+        )
+        # Titres PS2 (parenthèses) et titres sans tag inchangés.
+        self.assertEqual(clean_rom_title("Gran Turismo 4 (Europe)"), "Gran Turismo 4 (Europe)")
+        self.assertEqual(clean_rom_title("  "), "  ")
 
 
 class ExportCsvTests(unittest.TestCase):

@@ -36,10 +36,10 @@ class SearchPage(QWidget):
         self.query.setPlaceholderText("Chercher un titre PS2…")
         self.query.returnPressed.connect(lambda: self.do_search())
         bar.addWidget(self.query, stretch=1)
-        search_btn = QPushButton("Rechercher")
-        search_btn.setObjectName("primary")
-        search_btn.clicked.connect(lambda: self.do_search())
-        bar.addWidget(search_btn)
+        self.search_btn = QPushButton("Rechercher")
+        self.search_btn.setObjectName("primary")
+        self.search_btn.clicked.connect(lambda: self.do_search())
+        bar.addWidget(self.search_btn)
         layout.addLayout(bar)
 
         filters = QHBoxLayout()
@@ -85,7 +85,28 @@ class SearchPage(QWidget):
         layout.addLayout(pager)
         self.app.covers.loaded.connect(self._on_cover)
 
+    def activate(self):
+        """La recherche n'est branchée que sur des sources PS2 pour l'instant."""
+        ps2 = self.app.console.id == "ps2"
+        self.query.setEnabled(ps2)
+        self.search_btn.setEnabled(ps2)
+        if not ps2:
+            self._blocked_note = True
+            self.status.setText(
+                f"Recherche {self.app.console.name} indisponible : les sources "
+                "(Internet Archive, MiNERVA) ne sont branchées que sur la PS2. "
+                "La bibliothèque locale Switch est gérée dans l'onglet Bibliothèque."
+            )
+        elif getattr(self, "_blocked_note", False):
+            self._blocked_note = False
+            self.status.setText(
+                "Chercher un titre ; les fichiers et éditions seront proposés avant téléchargement."
+            )
+
     def do_search(self, page=1):
+        if self.app.console.id != "ps2":
+            self.activate()
+            return
         query = self.query.text().strip()
         if not query:
             return

@@ -44,6 +44,36 @@ class ServicesTests(unittest.TestCase):
         loaded.save()
         self.assertIsNone(Config.load(path).download_dir)
 
+    def test_switch_dir_and_launcher_optional_and_persistent(self):
+        from cochwa.consoles import get
+
+        switch = get("switch")
+        path = self.root / "config.toml"
+        cfg = Config.load(path)
+        # Par défaut : console Switch non configurée.
+        self.assertIsNone(cfg.switch_dir)
+        self.assertIsNone(cfg.switch_launcher)
+        self.assertIsNone(cfg.roms_dir(switch))
+        self.assertIsNone(cfg.launcher_for(switch))
+        cfg.switch_dir = self.root / "switch"
+        cfg.switch_launcher = self.root / "ryujinx" / "launch.sh"
+        cfg.save()
+        loaded = Config.load(path)
+        self.assertEqual(loaded.switch_dir, cfg.switch_dir)
+        self.assertEqual(loaded.switch_launcher, cfg.switch_launcher)
+        self.assertEqual(loaded.roms_dir(switch), cfg.switch_dir)
+        self.assertEqual(loaded.launcher_for(switch), cfg.switch_launcher)
+        # La PS2 reste sur les champs historiques.
+        self.assertEqual(loaded.roms_dir(get("ps2")), loaded.ps2_dir)
+        self.assertEqual(loaded.launcher_for(get("ps2")), loaded.launcher)
+        # Retour à « non configuré » : les clés sont retirées du TOML.
+        loaded.switch_dir = None
+        loaded.switch_launcher = None
+        loaded.save()
+        reloaded = Config.load(path)
+        self.assertIsNone(reloaded.switch_dir)
+        self.assertIsNone(reloaded.switch_launcher)
+
     def test_config_preserves_extra_options(self):
         path = self.root / "config.toml"
         path.write_text('[custom]\nfoo="bar"\n')

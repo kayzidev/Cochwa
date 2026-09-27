@@ -12,7 +12,7 @@ from cochwa.infrastructure.storage import confined_path, write_json
 from cochwa.services.download import checksum
 from cochwa.util import human_size
 
-EXTENSIONS = {".iso", ".chd", ".cue", ".bin"}
+EXTENSIONS = {".iso", ".chd", ".cue", ".bin"}  # PS2 (images CD/DVD)
 
 
 def cue_files(text):
@@ -43,14 +43,15 @@ class InstalledGame:
         }
 
 
-def scan(root: Path, index=None):
+def scan(root: Path, index=None, extensions=None):
     root = Path(root)
     if not root.is_dir():
         raise FileNotFoundError(f"Dossier ROMs introuvable : {root}")
+    extensions = {e.lower() for e in (extensions or EXTENSIONS)}
     index_records = index.records() if index else {}
     groups = {}
     for path in sorted(root.rglob("*")):
-        if path.is_symlink() or not path.is_file() or path.suffix.lower() not in EXTENSIONS:
+        if path.is_symlink() or not path.is_file() or path.suffix.lower() not in extensions:
             continue
         if any(p.is_symlink() for p in path.parents if p.is_relative_to(root)):
             continue
@@ -187,18 +188,23 @@ def export_csv(games, path):
     return Path(path)
 
 
-def launch(path, config):
+def launch(path, config, console=None):
     path = Path(path)
     if not path.is_file() or path.stat().st_size == 0:
-        raise FileNotFoundError("Image disque absente ou vide")
-    if not config.launcher.is_file():
-        raise FileNotFoundError(f"Lanceur introuvable : {config.launcher}")
+        raise FileNotFoundError("ROM absente ou vide")
+    launcher = config.launcher_for(console) if console else config.launcher
+    if not launcher:
+        name = console.name if console else "PS2"
+        raise FileNotFoundError(f"Lanceur {name} non configuré (onglet Paramètres)")
+    if not launcher.is_file():
+        raise FileNotFoundError(f"Lanceur introuvable : {launcher}")
     config.state_dir.mkdir(parents=True, exist_ok=True)
-    log_path = config.state_dir / "pcsx2.log"
+    log_name = "pcsx2" if console is None or console.id == "ps2" else console.id
+    log_path = config.state_dir / f"{log_name}.log"
     command = (
-        ["bash", str(config.launcher), str(path)]
-        if config.launcher.suffix == ".sh"
-        else [str(config.launcher), str(path)]
+        ["bash", str(launcher), str(path)]
+        if launcher.suffix == ".sh"
+        else [str(launcher), str(path)]
     )
     with log_path.open("ab") as log:
         process = subprocess.Popen(command, stdout=log, stderr=log, start_new_session=True)

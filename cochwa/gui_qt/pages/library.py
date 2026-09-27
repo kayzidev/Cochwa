@@ -1,4 +1,4 @@
-"""Bibliothèque locale : scan, filtre, tri, lancement PCSX2, CHD, doublons, CSV."""
+"""Bibliothèque locale : scan, filtre, tri, lancement émulateur, CHD, doublons, CSV."""
 
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from cochwa.gui_qt.grid import CardGrid
 from cochwa.services.conversion import convert_all_chd
 from cochwa.services.library import export_csv, scan
 from cochwa.services.library import launch as launch_game
+from cochwa.util import clean_rom_title
 
 
 class LibraryPage(QWidget):
@@ -54,6 +55,8 @@ class LibraryPage(QWidget):
             button = QPushButton(label)
             button.clicked.connect(callback)
             bar.addWidget(button)
+            if label == "Tout convertir en CHD":
+                self.convert_button = button
         layout.addLayout(bar)
 
         self.status = QLabel("Chargement…")
@@ -73,15 +76,27 @@ class LibraryPage(QWidget):
     def refresh(self):
         self.generation += 1
         generation = self.generation
-        root = self.app.config.ps2_dir
-        extra = self.app.config.download_dir
+        console = self.app.console
+        # CHD = format disque (PS2) ; sans objet pour les ROMs cartouche.
+        self.convert_button.setVisible(console.disc_based)
+        root = self.app.roms_dir()
+        if root is None:
+            self.games = []
+            self.grid.clear()
+            self.status.setText(
+                f"Dossier {console.name} non configuré — le renseigner dans Paramètres."
+            )
+            self.grid.set_empty(f"Configurer le dossier {console.name} dans Paramètres.")
+            return
+        # Le dossier de téléchargement distinct ne concerne que la PS2
+        # (les sources de téléchargement sont PS2 pour l'instant).
+        extra = self.app.config.download_dir if console.id == "ps2" else None
         self.status.setText(f"Lecture de {root}…")
 
         def work():
-            games = scan(root, self.app.index)
-            # Le dossier de téléchargement distinct est scanné aussi.
+            games = scan(root, self.app.index, extensions=console.rom_extensions)
             if extra and extra != root and extra.is_dir():
-                games = games + scan(extra, self.app.index)
+                games = games + scan(extra, self.app.index, extensions=console.rom_extensions)
             return games
 
         self.app.worker.submit(
@@ -104,24 +119,28 @@ class LibraryPage(QWidget):
 
     def render(self):
         self.grid.clear()
+        console = self.app.console
         games = [g for g in self.games if self.query.text().casefold() in g.title.casefold()]
         games.sort(
             key=(lambda g: -g.size)
             if self.sort.currentText() == "Taille"
             else (lambda g: g.title.casefold())
         )
-        roots = str(self.app.config.ps2_dir)
-        extra = self.app.config.download_dir
-        if extra and extra != self.app.config.ps2_dir:
+        roots = str(self.app.roms_dir() or "—")
+        extra = self.app.config.download_dir if console.id == "ps2" else None
+        if extra and extra != self.app.roms_dir():
             roots += f" + {extra}"
-        self.status.setText(f"{len(games)} jeu(x) · {roots}")
+        self.status.setText(f"{len(games)} jeu(x) · {console.name} · {roots}")
         for i, game in enumerate(games):
             badges = []
             if game.status:
                 color = theme.SUCCESS if game.status.startswith("Vérifié") else theme.MUTED
                 badges.append((game.status, color))
+            # Les dumps Switch portent des tags [titleID][vX][région] : retirés
+            # à l'affichage (et pour la recherche de jaquette).
+            title = game.title if console.disc_based else clean_rom_title(game.title)
             card = GameCard(
-                game.title,
+                title,
                 size_bytes=game.size,
                 badges=badges,
                 action=lambda g=game: self.app.local_details(g),
@@ -129,21 +148,22 @@ class LibraryPage(QWidget):
                 on_double_click=lambda g=game: self.launch(g),
             )
             self.grid.add(card, index=i)
-            self.app.cover(card, game.title)
+            self.app.cover(card, title)
         self.grid.set_empty(
             ""
             if games
-            else "Bibliothèque vide — vérifier le dossier PS2 dans Paramètres, puis Actualiser."
+            else f"Bibliothèque vide — vérifier le dossier {console.name} dans Paramètres, "
+            "puis Actualiser."
         )
 
     # -- Actions ----------------------------------------------------------
 
     def launch(self, game):
-        # Préfère le CHD converti quand il existe.
+        # Préfère le CHD converti quand il existe (consoles à disques).
         path = next((p for p in game.paths if p.suffix.lower() == ".chd"), game.paths[0])
         self.status.setText(f"Lancement de {game.title}…")
         self.app.worker.submit(
-            lambda: launch_game(path, self.app.config),
+            lambda: launch_game(path, self.app.config, console=self.app.console),
             lambda result: self.status.setText(f"{game.title} lancé ; journal : {result[1]}"),
             lambda error: self.status.setText(error),
         )
@@ -191,7 +211,10 @@ class LibraryPage(QWidget):
             self.status.setText("Bibliothèque vide ; rien à exporter.")
             return
         filename, _ = QFileDialog.getSaveFileName(
-            self, "Exporter la bibliothèque", "bibliotheque-ps2.csv", "CSV (*.csv)"
+            self,
+            "Exporter la bibliothèque",
+            f"bibliotheque-{self.app.console.id}.csv",
+            "CSV (*.csv)",
         )
         if not filename:
             return

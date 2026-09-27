@@ -26,10 +26,14 @@ class ToastManager:
         self._restack()
 
     def _restack(self):
-        y = self.window.height() - 70
-        for toast in reversed(self.toasts):
-            y -= toast.height() + 10
-            toast.move(self.window.width() - toast.width() - 18, y)
+        try:
+            y = self.window.height() - 70
+            for toast in reversed(self.toasts):
+                y -= toast.height() + 10
+                toast.move(self.window.width() - toast.width() - 18, y)
+        except RuntimeError:
+            # Fenêtre détruite (fermeture de l'app) : plus rien à replacer.
+            self.toasts.clear()
 
 
 class _Toast(QFrame):

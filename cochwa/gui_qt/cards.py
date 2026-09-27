@@ -145,7 +145,10 @@ class GameCard(QWidget):
         self.button.setObjectName("cardBtn")
         self.button.setCursor(Qt.PointingHandCursor)
         if action:
-            self.button.clicked.connect(action)
+            # clicked émet un booléen « checked » : sans ce relais il serait
+            # passé en premier argument de l'action (écrasant le paramètre
+            # par défaut du lambda — « Voir les éditions » recevait False).
+            self.button.clicked.connect(lambda _checked=False, act=action: act())
         layout.addWidget(self.button)
 
         # Les labels laissent passer la souris : le survol de la carte reste

@@ -26,6 +26,17 @@ def sanitize_dirname(name: str) -> str:
     return name or "Unknown"
 
 
+def clean_rom_title(name: str) -> str:
+    """Titre affichable : retire les tags de dumps Switch.
+
+    Supprime les groupes « [0100…][v0][US] » et les tags de site entre
+    parenthèses (« (nsw2u.xyz) » — présence d'un point = domaine).
+    """
+    cleaned = re.sub(r"\s*\[[^\]]*\]", "", name)
+    cleaned = re.sub(r"\s*\([^)]*\.[^)]*\)", "", cleaned)
+    return cleaned.strip() or name
+
+
 def human_size(num_bytes: int) -> str:
     """Convertit un nombre d'octets en taille lisible."""
     size = float(num_bytes)

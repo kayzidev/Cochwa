@@ -1,9 +1,9 @@
-"""Registre des consoles — base de la future logique multiconsole.
+"""Registre des consoles — base de la logique multiconsole.
 
-Seule la PS2 est implémentée (recherche, bibliothèque, lancement). Les autres
-entrées sont des emplacements réservés exposés à l'UI (sélecteur de console)
-sans aucune logique derrière : ne pas ajouter de provider tant que l'entrée
-n'est pas marquée ``enabled``.
+PS2 : recherche (IA + MiNERVA), bibliothèque et lancement.
+Switch : bibliothèque locale et lancement (Ryubing) ; la recherche Switch
+attend son provider — ne pas en ajouter un sans identification des dumps
+(pas d'équivalent Redump branché pour l'instant).
 """
 
 from __future__ import annotations
@@ -16,12 +16,36 @@ class Console:
     id: str
     name: str
     enabled: bool = False
+    rom_extensions: tuple[str, ...] = ()
+    roms_dir: str = ""  # dossier ROMs par défaut (tilde autorisée)
+    launcher: str = ""  # script de lancement par défaut
+    emulator: str = ""
+    emulator_url: str = ""
+    disc_based: bool = False  # images CD/DVD : CUE/CHD, conversion, datfile
 
 
 CONSOLES = (
-    Console("ps2", "PlayStation 2", enabled=True),
-    # Prochaine console à implémenter — sélecteur UI uniquement pour l'instant.
-    Console("switch", "Switch"),
+    Console(
+        "ps2",
+        "PlayStation 2",
+        enabled=True,
+        rom_extensions=(".iso", ".chd", ".cue", ".bin"),
+        roms_dir="~/Games/roms/ps2",
+        launcher="~/Games/scripts/pcsx2/launch.sh",
+        emulator="PCSX2",
+        emulator_url="https://pcsx2.net/",
+        disc_based=True,
+    ),
+    Console(
+        "switch",
+        "Switch",
+        enabled=True,
+        rom_extensions=(".nsp", ".xci", ".nca"),
+        roms_dir="~/Games/roms/switch",
+        launcher="~/Games/scripts/ryujinx/launch.sh",
+        emulator="Ryubing (fork Ryujinx)",
+        emulator_url="https://git.ryujinx.app/Ryubing/Canary/releases",
+    ),
 )
 
 DEFAULT_CONSOLE = CONSOLES[0]
