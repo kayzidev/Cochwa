@@ -1,4 +1,4 @@
-"""Paramètres : dossiers, lanceur, clé SteamGridDB, SRM, diagnostic."""
+"""Paramètres : sections console générées depuis le registre, jaquettes, SRM."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cochwa.consoles import CONSOLES, DEFAULT_CONSOLE
 from cochwa.gui_qt.widgets import PageHeader, section
 
 
@@ -43,23 +44,57 @@ class SettingsPage(QWidget):
         content.setContentsMargins(0, 0, 8, 0)
         content.setSpacing(16)
         self.values = {}
+        self.console_panels = {}
+        self.console_toggles = {}
 
-        panel, box = section("PlayStation 2", "Jeux, téléchargements et émulateur PlayStation 2.")
-        self.ps2_panel = panel
-        self._form = self._make_form()
-        box.addLayout(self._form)
-        self._row(
-            "directory", "Dossier de jeux", str(app.config.ps2_dir), browse=self._pick_directory
-        )
-        self._row("launcher", "Lanceur PCSX2", str(app.config.launcher), browse=self._pick_launcher)
-        self._row(
-            "download",
-            "Dossier de téléchargement",
-            str(app.config.download_dir or ""),
-            browse=self._pick_download,
-        )
-        self.values["download"].setPlaceholderText("Utiliser le dossier PS2")
-        content.addWidget(panel)
+        # Sections console générées depuis le registre : dossier + lanceur.
+        # La console par défaut est toujours dépliée ; les autres sont repliées
+        # derrière un bouton (UX historique PS2/Switch).
+        for console in CONSOLES:
+            cid = console.id
+            extensions = "/".join(e.lstrip(".").upper() for e in console.rom_extensions)
+            panel, box = section(
+                console.name,
+                f"Jeux {extensions} et lanceur {console.emulator}.",
+            )
+            self.console_panels[cid] = panel
+            form = self._make_form()
+            if console is DEFAULT_CONSOLE:
+                box.addLayout(form)
+                self._form = form
+                self._add_console_rows(console)
+                self._row(
+                    "download",
+                    "Dossier de téléchargement",
+                    str(app.config.download_dir or ""),
+                    browse=self._pick_download,
+                )
+                self.values["download"].setPlaceholderText(
+                    f"Utiliser le dossier {console.short_name or console.name}"
+                )
+            else:
+                short = console.short_name or console.name
+                toggle = QPushButton(f"Afficher la configuration {short}")
+                toggle.setCheckable(True)
+                box.addWidget(toggle)
+                advanced = QWidget()
+                advanced.setObjectName("formBody")
+                advanced.setLayout(form)
+                self._form = form
+                self._add_console_rows(console)
+                box.addWidget(advanced)
+                advanced.hide()
+                toggle.toggled.connect(advanced.setVisible)
+                toggle.toggled.connect(
+                    lambda checked, t=toggle, s=short: t.setText(
+                        f"Masquer la configuration {s}"
+                        if checked
+                        else f"Afficher la configuration {s}"
+                    )
+                )
+                self.console_toggles[cid] = toggle
+            panel.setVisible(cid == self.app.console.id)
+            content.addWidget(panel)
 
         panel, box = section(
             "Jaquettes",
@@ -69,42 +104,6 @@ class SettingsPage(QWidget):
         box.addLayout(self._form)
         self._row("key", "Clé SteamGridDB", app.config.steamgrid_api_key, password=True)
         self.values["key"].setPlaceholderText("Facultatif")
-        content.addWidget(panel)
-
-        panel, box = section(
-            "Nintendo Switch",
-            "Jeux NSP/XCI, recherche Internet Archive et lanceur Ryubing.",
-        )
-        self.switch_panel = panel
-        toggle = QPushButton("Afficher la configuration Switch")
-        toggle.setCheckable(True)
-        box.addWidget(toggle)
-        advanced = QWidget()
-        advanced.setObjectName("formBody")
-        self.switch_settings = advanced
-        self.switch_toggle = toggle
-        self._form = self._make_form()
-        advanced.setLayout(self._form)
-        self._row(
-            "switch_directory",
-            "Dossier de jeux",
-            str(app.config.switch_dir or ""),
-            browse=self._pick_switch_directory,
-        )
-        self._row(
-            "switch_launcher",
-            "Lanceur Ryubing",
-            str(app.config.switch_launcher or ""),
-            browse=self._pick_switch_launcher,
-        )
-        box.addWidget(advanced)
-        advanced.hide()
-        toggle.toggled.connect(advanced.setVisible)
-        toggle.toggled.connect(
-            lambda checked: toggle.setText(
-                "Masquer la configuration Switch" if checked else "Afficher la configuration Switch"
-            )
-        )
         content.addWidget(panel)
 
         panel, box = section(
@@ -138,11 +137,29 @@ class SettingsPage(QWidget):
         footer.addWidget(save)
         layout.addLayout(footer)
 
+    def _add_console_rows(self, console):
+        """Lignes dossier + lanceur d'une console (clés <id>_directory/<id>_launcher)."""
+        cid = console.id
+        self._row(
+            f"{cid}_directory",
+            "Dossier de jeux",
+            str(self.app.config.console_dirs.get(cid) or ""),
+            browse=lambda c=console: self._pick_directory(c),
+        )
+        self._row(
+            f"{cid}_launcher",
+            f"Lanceur {console.emulator}",
+            str(self.app.config.console_launchers.get(cid) or ""),
+            browse=lambda c=console: self._pick_launcher(c),
+        )
+
     def activate(self):
-        switch = self.app.console.id == "switch"
-        self.ps2_panel.setVisible(not switch)
-        self.switch_panel.setVisible(switch)
-        self.switch_toggle.setChecked(switch)
+        current = self.app.console.id
+        for cid, panel in self.console_panels.items():
+            panel.setVisible(cid == current)
+        toggle = self.console_toggles.get(current)
+        if toggle:
+            toggle.setChecked(True)
 
     def setup_srm(self):
         from cochwa.gui_qt.srm_dialog import SRMDialog
@@ -178,19 +195,22 @@ class SettingsPage(QWidget):
         else:
             self._form.addRow(label, field)
 
-    def _pick_directory(self):
-        path = QFileDialog.getExistingDirectory(self, "Dossier PS2", str(self.app.config.ps2_dir))
-        if path:
-            self.values["directory"].setText(path)
-
-    def _pick_switch_directory(self):
+    def _pick_directory(self, console):
+        current = self.app.config.console_dirs.get(console.id)
         path = QFileDialog.getExistingDirectory(
             self,
-            "Dossier Switch",
-            str(self.app.config.switch_dir or Path.home()),
+            f"Dossier {console.short_name or console.name}",
+            str(current or Path.home()),
         )
         if path:
-            self.values["switch_directory"].setText(path)
+            self.values[f"{console.id}_directory"].setText(path)
+
+    def _pick_launcher(self, console):
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Script ou exécutable {console.emulator} ({console.name})"
+        )
+        if path:
+            self.values[f"{console.id}_launcher"].setText(path)
 
     def _pick_download(self):
         path = QFileDialog.getExistingDirectory(
@@ -201,31 +221,33 @@ class SettingsPage(QWidget):
         if path:
             self.values["download"].setText(path)
 
-    def _pick_launcher(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Script ou exécutable PCSX2")
-        if path:
-            self.values["launcher"].setText(path)
-
-    def _pick_switch_launcher(self):
-        path, _ = QFileDialog.getOpenFileName(self, "Script ou exécutable Ryubing (Switch)")
-        if path:
-            self.values["switch_launcher"].setText(path)
-
     def save(self):
-        root = Path(self.values["directory"].text()).expanduser()
-        if not root.is_dir() and (self.app.console.id == "ps2" or root != self.app.config.ps2_dir):
-            self.app.error("Choisir un dossier existant ; vérifier son disque avant de continuer")
-            return
-        switch = self.values["switch_directory"].text().strip()
-        switch_dir = None
-        if switch:
-            switch_dir = Path(switch).expanduser()
-            if not switch_dir.is_dir():
-                self.app.error("Dossier Switch inexistant : " + switch)
+        config = self.app.config
+        # Validation d'existence par console : un dossier inexistant n'est
+        # toléré que s'il est inchangé et hors de la console active (disque
+        # débranché). Vide = non configuré (console par défaut : inchangé).
+        dirs = {}
+        for console in CONSOLES:
+            cid = console.id
+            raw = self.values[f"{cid}_directory"].text().strip()
+            if not raw:
+                dirs[cid] = config.console_dirs.get(cid) if console is DEFAULT_CONSOLE else None
+                continue
+            folder = Path(raw).expanduser()
+            if not folder.is_dir() and (
+                cid == self.app.console.id or folder != config.console_dirs.get(cid)
+            ):
+                self.app.error(
+                    f"Dossier {console.short_name or console.name} inexistant ; "
+                    "vérifier son disque avant de continuer"
+                )
                 return
-            switch_dir = switch_dir.absolute()
-        switch_launcher = self.values["switch_launcher"].text().strip()
-        switch_launcher = Path(switch_launcher).expanduser().absolute() if switch_launcher else None
+            dirs[cid] = folder.absolute()
+        launchers = {}
+        for console in CONSOLES:
+            cid = console.id
+            raw = self.values[f"{cid}_launcher"].text().strip()
+            launchers[cid] = Path(raw).expanduser().absolute() if raw else None
         download = self.values["download"].text().strip()
         download_dir = None
         if download:
@@ -234,21 +256,16 @@ class SettingsPage(QWidget):
                 self.app.error("Dossier de téléchargement inexistant : " + download)
                 return
             download_dir = download_dir.absolute()
-        config = self.app.config
         previous = (
-            config.ps2_dir,
-            config.switch_dir,
+            dict(config.console_dirs),
+            dict(config.console_launchers),
             config.download_dir,
-            config.launcher,
-            config.switch_launcher,
             config.steamgrid_api_key,
         )
         try:
-            config.ps2_dir = root.absolute()
-            config.switch_dir = switch_dir
+            config.console_dirs = dirs
+            config.console_launchers = launchers
             config.download_dir = download_dir
-            config.launcher = Path(self.values["launcher"].text()).expanduser().absolute()
-            config.switch_launcher = switch_launcher
             config.steamgrid_api_key = self.values["key"].text().strip()
             config.save()
             self.app.covers.results.clear()
@@ -257,11 +274,9 @@ class SettingsPage(QWidget):
             self.app.notify("Paramètres enregistrés", "success")
         except Exception as exc:
             (
-                config.ps2_dir,
-                config.switch_dir,
+                config.console_dirs,
+                config.console_launchers,
                 config.download_dir,
-                config.launcher,
-                config.switch_launcher,
                 config.steamgrid_api_key,
             ) = previous
             self.app.error(str(exc))

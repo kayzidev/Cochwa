@@ -179,7 +179,7 @@ def prepare(config, directory, steam_dir, console_ids):
             raise ValueError(f"{console.name} : configurez un lanceur exécutable.")
         roots = [root]
         if (
-            console_id == "ps2"
+            console.disc_based
             and config.download_dir
             and config.download_dir.resolve() != root.resolve()
         ):

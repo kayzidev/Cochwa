@@ -132,6 +132,7 @@ class Console:
     emulator_url: str = ""
     short_name: str = ""
     disc_based: bool = False  # images CD/DVD : CUE/CHD, conversion, datfile
+    log_name: str = ""  # nom du journal dans state_dir (défaut : id)
     search_profile: SearchProfile | None = None  # None = recherche non branchée
 
 
@@ -147,6 +148,7 @@ CONSOLES = (
         emulator="PCSX2",
         emulator_url="https://pcsx2.net/",
         disc_based=True,
+        log_name="pcsx2",  # nom historique du journal
         search_profile=_PS2_PROFILE,
     ),
     Console(
@@ -159,6 +161,7 @@ CONSOLES = (
         launcher="~/Games/scripts/ryujinx/launch.sh",
         emulator="Ryubing (fork Ryujinx)",
         emulator_url="https://git.ryujinx.app/Ryubing/Canary/releases",
+        log_name="switch",
         search_profile=_SWITCH_PROFILE,  # défini, non câblé à l'UI (provider à venir)
     ),
 )

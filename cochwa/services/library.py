@@ -8,11 +8,10 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from cochwa.consoles import DEFAULT_CONSOLE
 from cochwa.infrastructure.storage import confined_path, write_json
 from cochwa.services.download import checksum
 from cochwa.util import human_size
-
-EXTENSIONS = {".iso", ".chd", ".cue", ".bin"}  # PS2 (images CD/DVD)
 
 
 def cue_files(text):
@@ -47,7 +46,7 @@ def scan(root: Path, index=None, extensions=None):
     root = Path(root)
     if not root.is_dir():
         raise FileNotFoundError(f"Dossier ROMs introuvable : {root}")
-    extensions = {e.lower() for e in (extensions or EXTENSIONS)}
+    extensions = {e.lower() for e in (extensions or DEFAULT_CONSOLE.rom_extensions)}
     index_records = index.records() if index else {}
     groups = {}
     for path in sorted(root.rglob("*")):
@@ -192,14 +191,14 @@ def launch(path, config, console=None):
     path = Path(path)
     if not path.is_file() or path.stat().st_size == 0:
         raise FileNotFoundError("ROM absente ou vide")
-    launcher = config.launcher_for(console) if console else config.launcher
+    launcher = config.launcher_for(console or DEFAULT_CONSOLE)
     if not launcher:
-        name = console.name if console else "PS2"
+        name = (console or DEFAULT_CONSOLE).name
         raise FileNotFoundError(f"Lanceur {name} non configuré (onglet Paramètres)")
     if not launcher.is_file():
         raise FileNotFoundError(f"Lanceur introuvable : {launcher}")
     config.state_dir.mkdir(parents=True, exist_ok=True)
-    log_name = "pcsx2" if console is None or console.id == "ps2" else console.id
+    log_name = (console or DEFAULT_CONSOLE).log_name or (console or DEFAULT_CONSOLE).id
     log_path = config.state_dir / f"{log_name}.log"
     command = (
         ["bash", str(launcher), str(path)]

@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from cochwa.api.redump import RedumpDatfile
 from cochwa.config import Config
+from cochwa.consoles import get
 from cochwa.models import IAGame
 from cochwa.providers.ia_redump import IARedumpProvider
 from cochwa.services.jobs import JobStore
@@ -173,3 +174,50 @@ class ServicesTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class GenericConsoleConfigTests(unittest.TestCase):
+    """P2 : chemins indexés par console.id, alias legacy, scan par défaut."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_legacy_launcher_alias_migrated_to_ps2_launcher(self):
+        path = self.root / "config.toml"
+        path.write_text('[roms]\nps2_dir="/tmp/roms"\n[app]\nlauncher="/tmp/pcsx2.sh"\n')
+        cfg = Config.load(path)
+        self.assertEqual(cfg.launcher, Path("/tmp/pcsx2.sh"))
+        self.assertEqual(cfg.launcher_for(get("ps2")), Path("/tmp/pcsx2.sh"))
+        cfg.save()
+        text = path.read_text()
+        self.assertIn("ps2_launcher", text)
+        self.assertNotIn('\n"launcher"', text)
+        self.assertEqual(Config.load(path).launcher, Path("/tmp/pcsx2.sh"))
+
+    def test_console_dirs_roundtrip_and_generic_setters(self):
+        path = self.root / "config.toml"
+        cfg = Config.load(path)
+        switch = get("switch")
+        cfg.set_roms_dir(switch, self.root / "switch roms")
+        cfg.set_launcher(switch, self.root / "ryubing.sh")
+        cfg.save()
+        loaded = Config.load(path)
+        self.assertEqual(loaded.console_dirs["switch"], self.root / "switch roms")
+        self.assertEqual(loaded.console_launchers["switch"], self.root / "ryubing.sh")
+        self.assertEqual(loaded.roms_dir(switch), self.root / "switch roms")
+        # La console par défaut garde ses valeurs registre.
+        self.assertEqual(loaded.ps2_dir, Path(get("ps2").roms_dir).expanduser())
+        self.assertEqual(loaded.launcher, Path(get("ps2").launcher).expanduser())
+
+    def test_scan_default_extensions_come_from_registry(self):
+        (self.root / "game.iso").write_bytes(b"rom")
+        (self.root / "game.nsp").write_bytes(b"rom")
+        (self.root / "notes.txt").write_text("ignore")
+        titles = [g.title for g in scan(self.root)]
+        self.assertEqual(titles, ["game"])
+        # Le registre PS2 est la seule source des extensions par défaut.
+        self.assertEqual(set(get("ps2").rom_extensions), {".iso", ".chd", ".cue", ".bin"})

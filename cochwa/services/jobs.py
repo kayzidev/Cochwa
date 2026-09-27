@@ -10,6 +10,7 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from cochwa import consoles
 from cochwa.infrastructure.storage import confined_path, file_lock, write_json
 from cochwa.services.download import DownloadCancelled, checksum, download
 from cochwa.services.extraction import extract_if_archive
@@ -293,7 +294,9 @@ class DownloadManager:
                         }
                         # Identification Redump du contenu extrait : le hash de
                         # l'archive ne vaut rien, celui du fichier extrait si.
-                        if self.datfile and payload.get("platform", "ps2") == "ps2":
+                        # Réservé aux consoles à disques (datfile Redump PS2).
+                        platform = consoles.get(payload.get("platform", "ps2"))
+                        if self.datfile and platform and platform.disc_based:
                             digest = checksum(p, cancel=self.cancel_event)
                             entry["md5"] = digest
                             recognized = self.datfile().lookup_title_by_md5(digest)

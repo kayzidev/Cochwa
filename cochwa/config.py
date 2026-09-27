@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from cochwa.consoles import CONSOLES, DEFAULT_CONSOLE
 from cochwa.infrastructure.storage import atomic_write
 
 
@@ -49,25 +50,117 @@ class ProviderConfig:
         return list(self.options.get("ia_collections", []))
 
 
-@dataclass
+def _default_console_dirs():
+    """Dossiers ROMs par défaut : registre pour la console par défaut, None ailleurs.
+
+    None = console non configurée (l'UI invite alors à choisir un dossier).
+    """
+    return {
+        console.id: (Path(console.roms_dir).expanduser() if console is DEFAULT_CONSOLE else None)
+        for console in CONSOLES
+    }
+
+
+def _default_console_launchers():
+    """Lanceurs par défaut : registre pour la console par défaut, None ailleurs."""
+    return {
+        console.id: (Path(console.launcher).expanduser() if console is DEFAULT_CONSOLE else None)
+        for console in CONSOLES
+    }
+
+
 class Config:
-    ps2_dir: Path = field(default_factory=lambda: Path.home() / "Games/roms/ps2")
-    switch_dir: Path | None = None  # None = dossier Switch non configuré
-    download_dir: Path | None = None  # None = télécharge dans ps2_dir
-    steam_method: str = "srm"
-    steamgrid_api_key: str = ""
-    srm_flatpak: str = "com.steamgriddb.steam-rom-manager"
-    providers: dict[str, ProviderConfig] = field(
-        default_factory=lambda: {
-            "ia_redump": ProviderConfig("ia_redump"),
-            "minerva": ProviderConfig("minerva"),
-            "ia_switch": ProviderConfig("ia_switch"),
-        }
-    )
-    launcher: Path = field(default_factory=lambda: Path.home() / "Games/scripts/pcsx2/launch.sh")
-    switch_launcher: Path | None = None  # None = lanceur Switch non configuré
-    state_dir: Path = field(default_factory=lambda: DEFAULT_STATE_DIR)
-    source: Path | None = field(default=None, repr=False)
+    """Configuration validée ; chemins indexés par console.id (registre consoles.py).
+
+    Les propriétés ps2_dir / switch_dir / launcher / switch_launcher sont
+    conservées pour compatibilité (CLI, tests, outils).
+    """
+
+    def __init__(
+        self,
+        *,
+        console_dirs=None,
+        console_launchers=None,
+        ps2_dir=None,
+        switch_dir=None,
+        launcher=None,
+        switch_launcher=None,
+        download_dir=None,
+        steam_method="srm",
+        steamgrid_api_key="",
+        srm_flatpak="com.steamgriddb.steam-rom-manager",
+        providers=None,
+        state_dir=None,
+        source=None,
+    ):
+        self.console_dirs = (
+            dict(console_dirs) if console_dirs is not None else _default_console_dirs()
+        )
+        self.console_launchers = (
+            dict(console_launchers)
+            if console_launchers is not None
+            else _default_console_launchers()
+        )
+        # Alias historiques du constructeur (tests, outils, version 0.1).
+        if ps2_dir is not None:
+            self.console_dirs["ps2"] = Path(ps2_dir)
+        if switch_dir is not None:
+            self.console_dirs["switch"] = Path(switch_dir)
+        if launcher is not None:
+            self.console_launchers["ps2"] = Path(launcher)
+        if switch_launcher is not None:
+            self.console_launchers["switch"] = Path(switch_launcher)
+        self.download_dir = Path(download_dir) if download_dir is not None else None
+        self.steam_method = steam_method
+        self.steamgrid_api_key = steamgrid_api_key
+        self.srm_flatpak = srm_flatpak
+        self.providers = (
+            providers
+            if providers is not None
+            else {
+                "ia_redump": ProviderConfig("ia_redump"),
+                "minerva": ProviderConfig("minerva"),
+                "ia_switch": ProviderConfig("ia_switch"),
+            }
+        )
+        self.state_dir = Path(state_dir) if state_dir is not None else DEFAULT_STATE_DIR
+        self.source = source
+
+    # --- Compatibilité : accès directs historiques -------------------------
+
+    @property
+    def ps2_dir(self):
+        return self.console_dirs.get("ps2")
+
+    @ps2_dir.setter
+    def ps2_dir(self, value):
+        self.console_dirs["ps2"] = Path(value) if value else None
+
+    @property
+    def switch_dir(self):
+        return self.console_dirs.get("switch")
+
+    @switch_dir.setter
+    def switch_dir(self, value):
+        self.console_dirs["switch"] = Path(value) if value else None
+
+    @property
+    def launcher(self):
+        return self.console_launchers.get("ps2")
+
+    @launcher.setter
+    def launcher(self, value):
+        self.console_launchers["ps2"] = Path(value) if value else None
+
+    @property
+    def switch_launcher(self):
+        return self.console_launchers.get("switch")
+
+    @switch_launcher.setter
+    def switch_launcher(self, value):
+        self.console_launchers["switch"] = Path(value) if value else None
+
+    # --- Accès génériques par console ---------------------------------------
 
     @property
     def download_path(self):
@@ -76,15 +169,17 @@ class Config:
 
     def roms_dir(self, console):
         """Dossier ROMs de la console ; None si la console n'est pas configurée."""
-        if console.id == "switch":
-            return self.switch_dir
-        return self.ps2_dir
+        return self.console_dirs.get(console.id)
+
+    def set_roms_dir(self, console, path):
+        self.console_dirs[console.id] = Path(path) if path else None
 
     def launcher_for(self, console):
         """Script de lancement de la console ; None si non configuré."""
-        if console.id == "switch":
-            return self.switch_launcher
-        return self.launcher
+        return self.console_launchers.get(console.id)
+
+    def set_launcher(self, console, path):
+        self.console_launchers[console.id] = Path(path) if path else None
 
     @property
     def cache_dir(self):
@@ -114,16 +209,28 @@ class Config:
                 raise ValueError(f"{section}.{key} doit être du texte")
             return result
 
-        cfg.ps2_dir = Path(value("roms", "ps2_dir", str(cfg.ps2_dir))).expanduser().absolute()
-        switch_dir = value("roms", "switch_dir", "").strip()
-        cfg.switch_dir = Path(switch_dir).expanduser().absolute() if switch_dir else None
+        # Chemins par console : [roms] <id>_dir et [app] <id>_launcher.
+        for console in CONSOLES:
+            cid = console.id
+            current_dir = cfg.console_dirs.get(cid)
+            raw_dir = value("roms", f"{cid}_dir", str(current_dir or "")).strip()
+            cfg.console_dirs[cid] = Path(raw_dir).expanduser().absolute() if raw_dir else None
+            # Alias legacy : [app] launcher = lanceur de la console par défaut.
+            default_launcher = cfg.console_launchers.get(cid)
+            app = data.get("app", {})
+            raw_launcher = app.get(f"{cid}_launcher")
+            if raw_launcher is None and console is DEFAULT_CONSOLE:
+                raw_launcher = app.get("launcher", str(default_launcher or ""))
+            elif raw_launcher is None:
+                raw_launcher = str(default_launcher or "")
+            if not isinstance(raw_launcher, str):
+                raise ValueError(f"app.{cid}_launcher doit être du texte")
+            raw_launcher = raw_launcher.strip()
+            cfg.console_launchers[cid] = (
+                Path(raw_launcher).expanduser().absolute() if raw_launcher else None
+            )
         download_dir = value("roms", "download_dir", "").strip()
         cfg.download_dir = Path(download_dir).expanduser().absolute() if download_dir else None
-        cfg.launcher = Path(value("app", "launcher", str(cfg.launcher))).expanduser().absolute()
-        switch_launcher = value("app", "switch_launcher", "").strip()
-        cfg.switch_launcher = (
-            Path(switch_launcher).expanduser().absolute() if switch_launcher else None
-        )
         cfg.state_dir = Path(value("app", "state_dir", str(cfg.state_dir))).expanduser().absolute()
         cfg.steam_method = value("steam", "method", "srm")
         if cfg.steam_method != "srm":
@@ -169,27 +276,29 @@ class Config:
         if target.exists():
             with target.open("rb") as stream:
                 data = tomllib.load(stream)
-        data.setdefault("roms", {}).update(ps2_dir=str(self.ps2_dir))
-        if self.switch_dir:
-            data["roms"]["switch_dir"] = str(self.switch_dir)
-        else:
-            data["roms"].pop("switch_dir", None)
+        roms = data.setdefault("roms", {})
+        for cid, folder in self.console_dirs.items():
+            if folder:
+                roms[f"{cid}_dir"] = str(folder)
+            else:
+                roms.pop(f"{cid}_dir", None)
         if self.download_dir:
-            data["roms"]["download_dir"] = str(self.download_dir)
+            roms["download_dir"] = str(self.download_dir)
         else:
-            data["roms"].pop("download_dir", None)
+            roms.pop("download_dir", None)
         data.setdefault("steam", {}).update(
             method=self.steam_method,
             steamgrid_api_key=self.steamgrid_api_key,
             srm_flatpak=self.srm_flatpak,
         )
-        data.setdefault("app", {}).update(
-            launcher=str(self.launcher), state_dir=str(self.state_dir)
-        )
-        if self.switch_launcher:
-            data["app"]["switch_launcher"] = str(self.switch_launcher)
-        else:
-            data["app"].pop("switch_launcher", None)
+        app = data.setdefault("app", {})
+        for cid, script in self.console_launchers.items():
+            if script:
+                app[f"{cid}_launcher"] = str(script)
+            else:
+                app.pop(f"{cid}_launcher", None)
+        app.pop("launcher", None)  # alias legacy migré vers <id>_launcher
+        app["state_dir"] = str(self.state_dir)
         data["providers"] = {
             name: {"enabled": p.enabled, **p.options} for name, p in self.providers.items()
         }

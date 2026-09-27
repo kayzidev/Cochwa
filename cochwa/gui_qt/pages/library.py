@@ -143,9 +143,9 @@ class LibraryPage(QWidget):
                 lambda: self.app.sidebar.setCurrentRow(5),
             )
             return
-        # Le dossier de téléchargement distinct ne concerne que la PS2
-        # (les sources de téléchargement sont PS2 pour l'instant).
-        extra = self.app.config.download_dir if console.id == "ps2" else None
+        # Le dossier de téléchargement distinct ne concerne que la console
+        # à disques (les téléchargements IA y sont identifiés via Redump).
+        extra = self.app.config.download_dir if console.disc_based else None
         self.status.setText("Actualisation de votre bibliothèque…")
         self.status.setToolTip(str(root))
 
@@ -189,7 +189,7 @@ class LibraryPage(QWidget):
             else (lambda g: g.title.casefold())
         )
         roots = str(self.app.roms_dir() or "—")
-        extra = self.app.config.download_dir if console.id == "ps2" else None
+        extra = self.app.config.download_dir if console.disc_based else None
         if extra and extra != self.app.roms_dir():
             roots += f" + {extra}"
         self.status.setText(f"{len(games)} jeu(x) affiché(s) · {console.name}")

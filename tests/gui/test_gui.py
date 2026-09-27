@@ -296,3 +296,46 @@ def test_download_delete_button_uses_selected_task(window):
         assert page.actions["Supprimer"].isEnabled()
         page.actions["Supprimer"].click()
         remove.assert_called_once_with("remove-me")
+
+
+def test_settings_sections_generated_from_consoles(window):
+    """P2 : une section par console du registre, clés génériques, activate()."""
+    from cochwa.consoles import CONSOLES, DEFAULT_CONSOLE
+
+    page = window.tab_settings
+    assert set(page.console_panels) == {c.id for c in CONSOLES}
+    for console in CONSOLES:
+        assert f"{console.id}_directory" in page.values
+        assert f"{console.id}_launcher" in page.values
+    # La console par défaut est dépliée (pas de toggle), les autres repliées.
+    assert DEFAULT_CONSOLE.id not in page.console_toggles
+    assert set(page.console_toggles) == {c.id for c in CONSOLES if c is not DEFAULT_CONSOLE}
+    # Seule la section de la console active est visible
+    # (isHidden : la page elle-même n'est pas affichée pendant le test).
+    window.select_console(1)
+    page.activate()
+    assert page.console_panels["ps2"].isHidden()
+    assert not page.console_panels["switch"].isHidden()
+    window.select_console(0)
+    page.activate()
+    assert not page.console_panels["ps2"].isHidden()
+    assert page.console_panels["switch"].isHidden()
+
+
+def test_settings_save_generic_roundtrip(window, tmp_path):
+    """P2 : save() générique écrit <id>_dir / <id>_launcher et restaure sur erreur."""
+    page = window.tab_settings
+    switch_roms = tmp_path / "switch roms"
+    switch_roms.mkdir()
+    page.values["switch_directory"].setText(str(switch_roms))
+    page.values["switch_launcher"].setText(str(tmp_path / "ryubing.sh"))
+    page.save()
+    assert window.config.switch_dir == switch_roms
+    assert window.config.switch_launcher == tmp_path / "ryubing.sh"
+    loaded = Config.load(window.config.source)
+    assert loaded.console_dirs["switch"] == switch_roms
+    assert loaded.console_launchers["switch"] == tmp_path / "ryubing.sh"
+    # Dossier Switch inexistant : refusé, config intacte.
+    page.values["switch_directory"].setText(str(tmp_path / "absent"))
+    page.save()
+    assert window.config.switch_dir == switch_roms
