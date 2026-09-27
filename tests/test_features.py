@@ -28,9 +28,9 @@ def game(title, size, identifier="id"):
 
 
 class DedupeTests(unittest.TestCase):
-    def test_near_identical_duplicates_removed(self):
+    def test_near_sizes_are_not_evidence_of_duplicates(self):
         games = [game("Game (Europe)", 1000, "a"), game("Game (Europe)", 1040, "b")]
-        self.assertEqual(len(_dedupe(games)), 1)
+        self.assertEqual(len(_dedupe(games)), 2)
 
     def test_variants_preserved(self):
         # Régions différentes : titres nettoyés distincts → conservées.

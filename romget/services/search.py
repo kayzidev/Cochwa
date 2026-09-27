@@ -8,6 +8,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from difflib import SequenceMatcher, get_close_matches
 from urllib.parse import quote
 
@@ -15,7 +16,15 @@ from romget.api.redump import get_datfile
 from romget.infrastructure.http import get_json
 from romget.infrastructure.storage import write_json
 from romget.models import IAGame, SearchResult
-from romget.util import extract_main_rom, is_archive, is_rom_or_archive
+from romget.providers.minerva import MinervaProvider
+from romget.services.relevance import (
+    dedupe,
+    is_unrequested_asset,
+    matches_filters,
+    relevant,
+    tokens,
+)
+from romget.util import extract_main_rom, is_rom_or_archive
 
 SEARCH_URL = "https://archive.org/advancedsearch.php"
 _METADATA_POOL = ThreadPoolExecutor(max_workers=8, thread_name_prefix="metadata")
@@ -80,7 +89,6 @@ _OTHER_PLATFORM_TERMS = (
     "genesis",
     "snes",
     "saturn",
-    "arcade",
     "mame",
     "3ds",
     "wiiu",
@@ -101,7 +109,7 @@ _OTHER_CONSOLE_COLLECTION = re.compile(
 
 def _normalize(text):
     """Normalise un titre/identifier pour la détection de plateforme."""
-    return " " + re.sub(r"[_\-\.\[\]()]", " ", text.casefold()) + " "
+    return " " + " ".join(re.sub(r"[^a-z0-9]+", " ", text.casefold()).split()) + " "
 
 
 def _matches_other_platform(title, identifier, collections=()):
@@ -111,7 +119,7 @@ def _matches_other_platform(title, identifier, collections=()):
     if _PS1_PATTERN.search(haystack):
         return True
     # Collections IA renseignées, aucune PS2, au moins une autre console.
-    cols = [str(c) for c in collections] if collections else []
+    cols = [collections] if isinstance(collections, str) else list(collections or [])
     if cols and not any(_PS2_COLLECTION.search(c) for c in cols):
         return any(_OTHER_CONSOLE_COLLECTION.search(c) for c in cols)
     return False
@@ -121,29 +129,75 @@ def literal(text):
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-def _dedupe(games, tolerance=0.05):
-    """Supprime les doublons quasi identiques : même titre nettoyé, taille ±5 %.
-
-    À appeler après le tri : le premier exemplaire conservé est le mieux
-    classé. Les variantes (région, version, mods) ont des titres nettoyés
-    distincts et sont préservées.
-    """
-    kept = []
-    for game in games:
-        duplicate = any(
-            other.clean_title.casefold() == game.clean_title.casefold()
-            and other.total_size
-            and abs(game.total_size - other.total_size) / other.total_size <= tolerance
-            for other in kept
-        )
-        if not duplicate:
-            kept.append(game)
-    return kept
+_dedupe = dedupe
 
 
 class SearchService:
     def __init__(self, config):
         self.config = config
+
+    def search(
+        self,
+        query,
+        *,
+        page=1,
+        limit=20,
+        verified_only=False,
+        region="",
+        language="",
+        cancel=None,
+        source="all",
+    ):
+        query = query.strip()
+        if page < 1 or not 1 <= limit <= 100:
+            raise ValueError("Page ≥ 1 et limite entre 1 et 100 requises")
+        if source not in {"all", "ia_redump", "minerva"}:
+            raise ValueError("Source inconnue")
+        if not query:
+            return SearchResult(page=page)
+        methods = {"ia_redump": self._search_ia, "minerva": MinervaProvider(self.config).search}
+        selected = [
+            name
+            for name in methods
+            if source in {"all", name}
+            and self.config.providers.get(name)
+            and self.config.providers[name].enabled
+        ]
+        if not selected:
+            raise ValueError("Aucune source sélectionnée active")
+        options = dict(
+            page=page,
+            limit=limit,
+            verified_only=verified_only,
+            region=region,
+            language=language,
+            cancel=cancel,
+        )
+        result = SearchResult(page=page)
+        failures = []
+        # Pool séparé : ne pas bloquer les workers metadata avec leurs parents.
+        with ThreadPoolExecutor(max_workers=len(selected)) as pool:
+            futures = {name: pool.submit(methods[name], query, **options) for name in selected}
+            for name, future in futures.items():
+                try:
+                    part = future.result()
+                except Exception as exc:
+                    failures.append(name)
+                    result.warnings.append(f"{name} indisponible ({type(exc).__name__})")
+                    continue
+                result.games.extend(part.games)
+                result.total_items += part.total_items
+                result.has_more |= part.has_more
+                result.source_totals.update(part.source_totals)
+                result.warnings.extend(part.warnings)
+                result.suggestions.extend(part.suggestions)
+        if cancel and cancel.is_set():
+            return SearchResult(page=page)
+        if len(failures) == len(selected):
+            raise RuntimeError("Toutes les sources sélectionnées sont indisponibles ; réessayer")
+        result.games = _dedupe(result.games)
+        result.suggestions = list(dict.fromkeys(result.suggestions)) if not result.games else []
+        return result
 
     def _cached(self, url, params=None, ttl=3600):
         key = hashlib.sha256(json.dumps([url, params], sort_keys=True).encode()).hexdigest()
@@ -164,6 +218,8 @@ class SearchService:
             return data
 
     def item(self, identifier, datfile=None):
+        if identifier.startswith("minerva-"):
+            raise ValueError("MiNERVA : ouvrir la fiche source avec un client torrent externe")
         if not re.fullmatch(r"[A-Za-z0-9_.-]+", identifier):
             raise ValueError("Identifiant IA invalide")
         data = self._cached("https://archive.org/metadata/" + quote(identifier, safe=""))
@@ -203,9 +259,7 @@ class SearchService:
         titles = {f["title"] for f in files if f["title"]}
         # Seules les images disque directes peuvent matcher le hash Redump ;
         # une archive (.rar/.zip/.7z) a le hash de l'archive, pas du contenu.
-        images = [
-            f for f in files if not f["name"].lower().endswith(".cue") and not is_archive(f["name"])
-        ]
+        images = [f for f in files if not f["name"].lower().endswith(".cue")]
         all_identified = bool(images) and all(f["title"] for f in images)
         identification = (
             "hash" if all_identified else ("title" if datfile.is_ps2_title(title) else "unknown")
@@ -222,7 +276,7 @@ class SearchService:
             identification,
         )
 
-    def search(
+    def _search_ia(
         self, query, *, page=1, limit=20, verified_only=False, region="", language="", cancel=None
     ):
         query = query.strip()
@@ -259,6 +313,8 @@ class SearchService:
             raise ValueError("Réponse recherche IA invalide")
         datfile = get_datfile(self.config.cache_dir, self.config.datfile_url)
         result = SearchResult(total_items=int(response.get("numFound", 0)), page=page)
+        result.has_more = page * limit < result.total_items
+        result.source_totals = {"ia_redump": result.total_items}
         if datfile.status != "fresh":
             result.warnings.append("Index Redump périmé ou indisponible : identification limitée")
         # Pré-filtre par titre/identifier : exclut les items d'autres plateformes
@@ -286,17 +342,52 @@ class SearchService:
             except Exception:
                 failures += 1
                 continue
-            if not game.files:
+            if not game.files or _matches_other_platform(game.ia_title, game.identifier):
                 continue
-            if verified_only and not any(f["identification"] == "hash" for f in game.files):
+            if is_unrequested_asset(query, game.ia_title):
                 continue
-            haystack = (game.clean_title + " " + " ".join(f["name"] for f in game.files)).casefold()
-            if region and region.casefold() not in haystack:
+            # Tous les filtres doivent être satisfaits par la même édition.
+            candidates = []
+            for file in game.files:
+                file_title = file.get("title") or file["name"]
+                if _matches_other_platform(file_title, ""):
+                    continue
+                if is_unrequested_asset(query, file_title):
+                    continue
+                if verified_only and file.get("identification") != "hash":
+                    continue
+                generic = bool(
+                    re.fullmatch(
+                        r"(?:game|disc|disk|track|image|rom|part|x)[ _.-]*[0-9]*(?:\.[a-z0-9]+)?",
+                        file["name"],
+                        re.I,
+                    )
+                )
+                if not (
+                    relevant(query, file_title)
+                    or (generic and relevant(query, game.clean_title))
+                    or (
+                        serial
+                        and re.sub(r"[^a-z0-9]", "", query.casefold())
+                        in re.sub(r"[^a-z0-9]", "", file_title.casefold())
+                    )
+                ):
+                    continue
+                # Le titre du fichier prime pour les régions explicites : un pack
+                # « Europe + USA » ne doit pas faire passer un fichier USA en Europe.
+                filter_text = file_title
+                if not re.search(r"\b(europe|usa|japan|pal|eur|jpn)\b", file_title, re.I):
+                    filter_text += " " + game.clean_title
+                if matches_filters(filter_text, region, language):
+                    candidates.append(file)
+            if not candidates:
                 continue
-            if language and not re.search(
-                r"(?<![a-z])" + re.escape(language.casefold()) + r"(?![a-z])", haystack
-            ):
-                continue
+            game = replace(
+                game,
+                files=candidates,
+                main_rom=extract_main_rom([f["name"] for f in candidates]),
+                total_size=sum(f["size"] for f in candidates),
+            )
             result.games.append(game)
         if failures:
             result.warnings.append(f"{failures} item(s) inaccessible(s) ; résultats partiels")
@@ -342,9 +433,12 @@ class SearchService:
                 + (0.10 if game.identification == "hash" else 0.0)
                 + (0.05 if trusted & doc_collections.get(game.identifier, set()) else 0.0)
             )
+            base_title = re.split(r"[([]", game.clean_title)[0]
+            exact = tokens(query) == tokens(base_title)
             return (
                 low_priority,  # False (jeux) avant True (cheats/démos)
                 is_prototype,  # versions finales avant prototypes
+                not exact,
                 -score,  # meilleur score d'abord
                 game.clean_title,
                 game.identifier,

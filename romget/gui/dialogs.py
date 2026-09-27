@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import tkinter as tk
+import webbrowser
 from tkinter import filedialog, ttk
 
 from romget.api.redump import get_datfile
@@ -24,9 +25,35 @@ def show_remote_details(app, game):
     ttk.Label(window, text=game.clean_title, font=theme.F_H2, wraplength=900).pack(
         fill="x", padx=12, pady=10
     )
-    ttk.Label(window, text=game.label + " · Source IA : " + game.identifier, wraplength=900).pack(
-        fill="x", padx=12
-    )
+    ttk.Label(
+        window,
+        text=game.label + " · Source : " + game.source + " / " + game.identifier,
+        wraplength=900,
+    ).pack(fill="x", padx=12)
+    if game.external:
+        ttk.Label(
+            window,
+            text="Ouvrir la fiche MiNERVA, choisir le torrent dans votre client, "
+            "puis placer les fichiers extraits dans le dossier PS2.",
+            wraplength=850,
+        ).pack(pady=20)
+        ttk.Button(
+            window,
+            text="Ouvrir la fiche MiNERVA",
+            command=lambda: webbrowser.open(game.source_reference()["url"]),
+        ).pack()
+        ttk.Button(window, text="Fermer", command=window.destroy).pack(pady=12)
+        return
+    if game.alternatives:
+        copies = ttk.Frame(window)
+        copies.pack(fill="x", padx=12, pady=4)
+        ttk.Label(copies, text="Copies identiques :").pack(side="left")
+        for ref in game.alternatives:
+            ttk.Button(
+                copies,
+                text=ref["source"] + " / " + ref["identifier"],
+                command=lambda url=ref["url"]: webbrowser.open(url),
+            ).pack(side="left")
     ttk.Label(
         window,
         text="Sélectionner explicitement les disques et pistes souhaités. Les variantes ne sont pas fusionnées.",

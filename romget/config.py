@@ -49,7 +49,10 @@ class Config:
     steamgrid_api_key: str = ""
     srm_flatpak: str = "com.steamgriddb.steam-rom-manager"
     providers: dict[str, ProviderConfig] = field(
-        default_factory=lambda: {"ia_redump": ProviderConfig("ia_redump")}
+        default_factory=lambda: {
+            "ia_redump": ProviderConfig("ia_redump"),
+            "minerva": ProviderConfig("minerva"),
+        }
     )
     launcher: Path = field(default_factory=lambda: Path.home() / "Games/scripts/pcsx2/launch.sh")
     state_dir: Path = field(default_factory=lambda: DEFAULT_STATE_DIR)

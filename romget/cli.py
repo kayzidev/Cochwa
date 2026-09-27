@@ -40,8 +40,9 @@ def build_parser():
     parser.add_argument("--json", action="store_true", help="Sortie structurée sur stdout")
     parser.add_argument("--verbose", action="store_true")
     sub = parser.add_subparsers(dest="command", required=True)
-    search = sub.add_parser("search", help="Recherche IA à la demande")
+    search = sub.add_parser("search", help="Recherche PS2 multi-sources")
     search.add_argument("query")
+    search.add_argument("--source", choices=["all", "ia_redump", "minerva"], default="all")
     search.add_argument("--limit", type=positive, default=20)
     search.add_argument("--page", type=positive, default=1)
     search.add_argument(
@@ -168,6 +169,7 @@ def main(argv=None):
         if command == "search":
             result = search.search(
                 args.query,
+                source=args.source,
                 page=args.page,
                 limit=args.limit,
                 verified_only=args.verified_only,
@@ -180,6 +182,8 @@ def main(argv=None):
                         "games": [g.to_dict() for g in result.games],
                         "total_items": result.total_items,
                         "page": result.page,
+                        "has_more": result.has_more,
+                        "source_totals": result.source_totals,
                         "warnings": result.warnings,
                         "suggestions": result.suggestions,
                     },
@@ -193,6 +197,8 @@ def main(argv=None):
                     print(
                         f"{g.identifier}\n  {g.clean_title} — {human_size(g.total_size)} — {g.label}"
                     )
+                    if g.external:
+                        print("  " + g.source_reference()["url"])
                 if result.suggestions:
                     print("Suggestions : " + " / ".join(result.suggestions))
                 for warning in result.warnings:
@@ -251,10 +257,12 @@ def main(argv=None):
             else:
                 emit(
                     {
-                        "ia_redump": {
-                            "enabled": cfg.providers.get("ia_redump").enabled,
-                            "mode": "on-demand",
+                        name: {
+                            "enabled": provider.enabled,
+                            "mode": "external-torrent" if name == "minerva" else "on-demand",
                         }
+                        for name, provider in cfg.providers.items()
+                        if name in {"ia_redump", "minerva"}
                     },
                     args,
                 )
