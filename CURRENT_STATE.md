@@ -20,6 +20,13 @@ Date : 2026-09-27 (Europe/Paris), mise à jour soir.
   `MainWindow.console` + `select_console()` = point d'entrée ; **aucune
   logique Switch** ajoutée (consigne). Test GUI dédié.
 - Suite : 87 tests + 10 sous-tests verts, ruff propre, captures régénérées.
+- **Dossier renommé** : `~/Games/scripts/romget` → `~/Games/scripts/cochwa`
+  (venv recréé — les shebangs .venv sont absolus —, wrappers `~/.local/bin/`
+  réécrits : `cochwa`/`cochwa-gui` + alias `romget*` sur le nouveau chemin).
+  Le workspace Cursor doit être rouvert sur le nouveau dossier.
+- **Fix covers** : l'effet d'opacité du fondu n'était jamais retiré du label
+  → rendu via cache hors écran, jaquettes « décollées » pendant le scroll ;
+  animations de zoom accumulées → stop+delete de la précédente (`4fc738a`).
 
 ## Session 8 (2026-09-27) — réécriture totale du GUI en PySide6
 

@@ -19,7 +19,7 @@ GitHub (dépôt privé kayzidev/Cochwa).
 
 **Mise à jour 2026-09-27 (session 9)** : projet renommé **Cochwa** (paquet,
 entry points avec alias `romget*` conservés, dépôt GitHub). Reste :
-renommer le dossier du projet `~/Games/scripts/romget` (touche les wrappers
+renommer le dossier du projet `~/Games/scripts/cochwa` (touche les wrappers
 et le remote local — décision utilisateur), et implémenter la console Switch
 (registre `consoles.py` prêt, UI en place).
 
@@ -66,7 +66,7 @@ jamais re-téléchargées entre les lancements ; cache négatif 24 h (session 4)
 ### P0 — Stabilité (cette semaine)
 
 - [ ] **Commit initial git** + push (déclenche la CI pour la première fois) — D1 — **reporté (décision utilisateur, session 3)**
-- [x] **Unifier le lancement** : wrappers `~/.local/bin/romget*` → `exec ~/Games/scripts/romget/.venv/bin/romget* "$@"` ; supprimer le PYTHONPATH — D2 — **fait (session 3)**
+- [x] **Unifier le lancement** : wrappers `~/.local/bin/romget*` → `exec ~/Games/scripts/cochwa/.venv/bin/romget* "$@"` ; supprimer le PYTHONPATH — D2 — **fait (session 3)**
 - [x] Installer les dev deps : `.venv/bin/pip install -e '.[dev]'` + lancer ruff — D5 — **fait (session 3)**
 - [ ] Renouveler la clé SGDB (elle a circulé en clair) et la saisir via l'onglet Paramètres — D3 — **action utilisateur** (nécessite le compte SteamGridDB)
 - [x] Validation visuelle GUI complète (6 onglets, recherche, covers, téléchargement réel d'une archive) — D9 — **fait (session 3)** : 6 onglets capturés avec workers réels (`docs/validation/`) ; le téléchargement réel d'une archive reste à faire manuellement
