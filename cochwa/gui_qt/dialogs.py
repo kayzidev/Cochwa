@@ -19,9 +19,11 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
 from cochwa.api.redump import get_datfile
+from cochwa.gui_qt.widgets import PageHeader
 from cochwa.infrastructure.storage import atomic_write
 from cochwa.services.conversion import convert_chd
 from cochwa.services.library import launch, verify_manifest
@@ -38,6 +40,8 @@ class RemoteDetailsDialog(QDialog):
         self.setWindowTitle(game.clean_title)
         self.resize(950, 560)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 20)
+        layout.setSpacing(16)
 
         title = QLabel(game.clean_title)
         title.setObjectName("heading")
@@ -79,6 +83,7 @@ class RemoteDetailsDialog(QDialog):
             "Les variantes ne sont pas fusionnées."
         )
         hint.setObjectName("muted")
+        hint.setWordWrap(True)
         layout.addWidget(hint)
 
         self.table = QTableWidget(len(game.files), 3)
@@ -86,14 +91,21 @@ class RemoteDetailsDialog(QDialog):
             ["Fichier / édition", "Taille", "Identification source"]
         )
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.table.verticalHeader().setVisible(False)
+        self.table.verticalHeader().setDefaultSectionSize(48)
+        self.table.setShowGrid(False)
+        self.table.setWordWrap(False)
         for row, file in enumerate(game.files):
             for column, text in enumerate(
                 (file["name"], human_size(file["size"]), file.get("title") or "Non reconnu")
             ):
                 item = QTableWidgetItem(text)
+                item.setToolTip(text)
                 item.setFlags(item.flags() & ~Qt.ItemIsEditable)
                 self.table.setItem(row, column, item)
         if len(game.files) == 1:
@@ -104,10 +116,10 @@ class RemoteDetailsDialog(QDialog):
         self.status = QLabel("")
         self.status.setObjectName("muted")
         layout.addWidget(self.status)
-        self._update_status()
 
         controls = QHBoxLayout()
-        enqueue = QPushButton("⬇ Ajouter la sélection à la file")
+        enqueue = QPushButton("Ajouter à mes téléchargements")
+        self.enqueue_button = enqueue
         enqueue.setObjectName("primary")
         enqueue.clicked.connect(self.enqueue)
         controls.addWidget(enqueue)
@@ -122,6 +134,7 @@ class RemoteDetailsDialog(QDialog):
         close.clicked.connect(self.reject)
         controls.addWidget(close)
         layout.addLayout(controls)
+        self._update_status()
 
     def _selected_files(self):
         rows = sorted({index.row() for index in self.table.selectionModel().selectedRows()})
@@ -129,6 +142,7 @@ class RemoteDetailsDialog(QDialog):
 
     def _update_status(self):
         files = self._selected_files()
+        self.enqueue_button.setEnabled(bool(files))
         self.status.setText(
             f"{len(files)} fichier(s) · {human_size(sum(f['size'] for f in files))} · "
             "CUE : sélectionner aussi ses pistes BIN"
@@ -158,20 +172,48 @@ class LocalDetailsDialog(QDialog):
         self.setWindowTitle(game.title)
         self.resize(820, 420)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 24, 24, 20)
+        layout.setSpacing(16)
 
-        title = QLabel(game.title)
-        title.setObjectName("heading")
-        title.setWordWrap(True)
-        layout.addWidget(title)
-        layout.addWidget(QLabel(game.status))
-
+        layout.addWidget(
+            PageHeader(
+                game.title,
+                f"{app.console.name} · {human_size(game.size)} · {game.status}",
+                "DANS VOTRE BIBLIOTHÈQUE",
+            )
+        )
+        main_actions = QHBoxLayout()
+        play = QPushButton("▶  Jouer")
+        play.setObjectName("primary")
+        play.clicked.connect(self.play)
+        main_actions.addWidget(play)
+        folder = QPushButton("Ouvrir le dossier")
+        folder.clicked.connect(self.open_folder)
+        main_actions.addWidget(folder)
+        cover = QPushButton("Changer la jaquette")
+        cover.clicked.connect(lambda: choose_cover(self.app, game.title))
+        main_actions.addWidget(cover)
+        main_actions.addStretch()
+        close = QPushButton("Fermer")
+        close.clicked.connect(self.reject)
+        main_actions.addWidget(close)
+        layout.addLayout(main_actions)
+        advanced = QPushButton("Fichiers et outils avancés")
+        advanced.setCheckable(True)
+        layout.addWidget(advanced)
+        details = QWidget()
+        detail_layout = QVBoxLayout(details)
+        detail_layout.setContentsMargins(0, 0, 0, 0)
         self.paths = QListWidget()
         self.paths.setObjectName("paths")
         for path in game.paths:
             self.paths.addItem(str(path))
         if game.paths:
             self.paths.setCurrentRow(0)
-        layout.addWidget(self.paths, stretch=1)
+        detail_layout.addWidget(self.paths, stretch=1)
+        self.paths.setCurrentRow(
+            next((i for i, p in enumerate(game.paths) if p.suffix.lower() == ".chd"), 0)
+        )
 
         self.status = QLabel("")
         self.status.setObjectName("muted")
@@ -179,31 +221,43 @@ class LocalDetailsDialog(QDialog):
         layout.addWidget(self.status)
 
         buttons = QHBoxLayout()
-        play = QPushButton("▶ Jouer")
-        play.setObjectName("primary")
-        play.clicked.connect(self.play)
-        buttons.addWidget(play)
         verify = QPushButton("Vérifier")
         verify.clicked.connect(self.verify)
         buttons.addWidget(verify)
         self.media = QComboBox()
-        self.media.addItems(["cd", "dvd"])
+        self.media.addItem("CD", "cd")
+        self.media.addItem("DVD", "dvd")
+        self.media.setAccessibleName("Type de disque pour la conversion CHD")
         buttons.addWidget(self.media)
         convert = QPushButton("Convertir en CHD")
+        self.convert_button = convert
         convert.clicked.connect(self.convert)
         buttons.addWidget(convert)
         # CHD = format disque : sans objet pour les ROMs cartouche (Switch).
         if not app.console.disc_based:
             self.media.setVisible(False)
             convert.setVisible(False)
-        folder = QPushButton("Ouvrir dossier")
-        folder.clicked.connect(self.open_folder)
-        buttons.addWidget(folder)
-        cover = QPushButton("Jaquette…")
-        cover.clicked.connect(lambda: choose_cover(self.app, game.title))
-        buttons.addWidget(cover)
+        self.paths.currentRowChanged.connect(self.update_file_actions)
+        self.update_file_actions()
         buttons.addStretch(1)
-        layout.addLayout(buttons)
+        detail_layout.addLayout(buttons)
+        layout.addWidget(details, stretch=1)
+        details.hide()
+        advanced.toggled.connect(details.setVisible)
+        advanced.toggled.connect(
+            lambda checked: advanced.setText(
+                "Masquer les outils avancés" if checked else "Fichiers et outils avancés"
+            )
+        )
+        layout.addStretch()
+
+    def update_file_actions(self):
+        row = self.paths.currentRow()
+        suffix = self.game.paths[row].suffix.lower() if row >= 0 else ""
+        convertible = self.app.console.disc_based and suffix in {".iso", ".cue"}
+        self.convert_button.setEnabled(convertible)
+        self.media.setEnabled(convertible)
+        self.media.setCurrentIndex(0 if suffix == ".cue" else 1)
 
     def chosen(self):
         row = self.paths.currentRow()
@@ -257,8 +311,9 @@ class LocalDetailsDialog(QDialog):
             self.status.setText(str(exc))
             return
         self.status.setText("Conversion et vérification CHD ; les originaux sont conservés…")
+        media = self.media.currentData()
         self.app.worker.submit(
-            lambda: convert_chd(path, self.media.currentText(), cancel=self.app.work_cancel),
+            lambda: convert_chd(path, media, cancel=self.app.work_cancel),
             lambda result: (
                 self.app.tab_library.refresh(),
                 self.status.setText("CHD vérifié : " + str(result)),

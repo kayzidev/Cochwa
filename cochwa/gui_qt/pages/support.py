@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from cochwa.consoles import CONSOLES
+from cochwa.gui_qt import theme
+from cochwa.gui_qt.widgets import PageHeader
 
 PROJECT_URL = "https://github.com/kayzidev/Cochwa"
 SRM_URL = "https://steamgriddb.github.io/steam-rom-manager/"
@@ -17,12 +19,21 @@ class SupportPage(QWidget):
         super().__init__()
         self.app = app
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
-        layout.setSpacing(8)
-        heading = QLabel("Support & liens utiles")
-        heading.setObjectName("heading")
-        layout.addWidget(heading)
-
+        layout.setContentsMargins(28, 24, 28, 16)
+        layout.setSpacing(14)
+        layout.addWidget(
+            PageHeader(
+                "Un coup de main ?", "Les ressources utiles pour profiter de vos jeux.", "SUPPORT"
+            )
+        )
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        body = QWidget()
+        layout.addWidget(scroll, stretch=1)
+        scroll.setWidget(body)
+        layout = QVBoxLayout(body)
+        layout.setContentsMargins(0, 0, 8, 0)
+        layout.setSpacing(16)
         layout.addWidget(self._section("Émulateurs"))
         for console in CONSOLES:
             layout.addLayout(
@@ -76,13 +87,15 @@ class SupportPage(QWidget):
 
     def _link(self, text, url, description):
         """Bouton d'ouverture dans le navigateur + description + URL visible."""
-        row = QHBoxLayout()
+        row = QVBoxLayout()
+        row.setSpacing(8)
         button = QPushButton(text)
         button.setToolTip(url)
+        button.setStyleSheet("text-align: left; padding: 12px 16px;")
         # clicked émet un booléen « checked » : ne pas le passer à openUrl.
         button.clicked.connect(lambda _checked=False, u=url: QDesktopServices.openUrl(QUrl(u)))
         row.addWidget(button)
-        desc = QLabel(f"{description}<br><span style='color:#66c0f4'>{url}</span>")
+        desc = QLabel(f"{description}<br><span style='color:{theme.ACCENT}'>{url}</span>")
         desc.setObjectName("muted")
         desc.setWordWrap(True)
         desc.setTextInteractionFlags(Qt.TextSelectableByMouse)  # URL copiable

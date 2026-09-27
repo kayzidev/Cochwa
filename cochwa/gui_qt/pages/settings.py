@@ -14,9 +14,12 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
+
+from cochwa.gui_qt.widgets import PageHeader, section
 
 
 class SettingsPage(QWidget):
@@ -24,70 +27,124 @@ class SettingsPage(QWidget):
         super().__init__()
         self.app = app
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
-        heading = QLabel("Paramètres")
-        heading.setObjectName("heading")
-        layout.addWidget(heading)
-
-        form = QFormLayout()
-        form.setSpacing(10)
+        layout.setContentsMargins(28, 24, 28, 16)
+        layout.setSpacing(14)
+        layout.addWidget(
+            PageHeader(
+                "À votre façon",
+                "Dossiers, émulateurs et jaquettes : tout commence ici.",
+                "PARAMÈTRES",
+            )
+        )
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        body = QWidget()
+        content = QVBoxLayout(body)
+        content.setContentsMargins(0, 0, 8, 0)
+        content.setSpacing(16)
         self.values = {}
-        self._form = form
-        self._row("directory", "Dossier PS2", str(app.config.ps2_dir), browse=self._pick_directory)
+
+        panel, box = section(
+            "PlayStation 2", "Votre plateforme actuelle pour la recherche et les téléchargements."
+        )
+        self._form = self._make_form()
+        box.addLayout(self._form)
+        self._row(
+            "directory", "Dossier de jeux", str(app.config.ps2_dir), browse=self._pick_directory
+        )
+        self._row("launcher", "Lanceur PCSX2", str(app.config.launcher), browse=self._pick_launcher)
+        self._row(
+            "download",
+            "Dossier de téléchargement",
+            str(app.config.download_dir or ""),
+            browse=self._pick_download,
+        )
+        self.values["download"].setPlaceholderText("Utiliser le dossier PS2")
+        content.addWidget(panel)
+
+        panel, box = section(
+            "Jaquettes",
+            "Connectez SteamGridDB pour enrichir votre bibliothèque. Une jaquette locale peut aussi être choisie depuis un jeu.",
+        )
+        self._form = self._make_form()
+        box.addLayout(self._form)
+        self._row("key", "Clé SteamGridDB", app.config.steamgrid_api_key, password=True)
+        self.values["key"].setPlaceholderText("Facultatif")
+        content.addWidget(panel)
+
+        panel, box = section(
+            "Switch · bibliothèque locale",
+            "Configuration facultative. Le catalogue de recherche reste dédié à la PS2.",
+        )
+        toggle = QPushButton("Afficher la configuration Switch")
+        toggle.setCheckable(True)
+        box.addWidget(toggle)
+        advanced = QWidget()
+        self._form = self._make_form()
+        advanced.setLayout(self._form)
         self._row(
             "switch_directory",
-            "Dossier Switch",
+            "Dossier de jeux",
             str(app.config.switch_dir or ""),
             browse=self._pick_switch_directory,
         )
         self._row(
-            "download",
-            "Téléchargements (vide = dossier PS2)",
-            str(app.config.download_dir or ""),
-            browse=self._pick_download,
-        )
-        self._row("launcher", "Lanceur PCSX2", str(app.config.launcher), browse=self._pick_launcher)
-        self._row(
             "switch_launcher",
-            "Lanceur Switch (Ryubing)",
+            "Lanceur Ryubing",
             str(app.config.switch_launcher or ""),
             browse=self._pick_switch_launcher,
         )
-        self._row("key", "Clé SteamGridDB", app.config.steamgrid_api_key, password=True)
-        layout.addLayout(form)
-
-        save = QPushButton("✓ Enregistrer")
-        save.setObjectName("primary")
-        save.clicked.connect(self.save)
-        layout.addWidget(save)
-
-        hint = QLabel(
-            "Steam ROM Manager : ouvrir SRM, Parse, Preview, Save apps to Steam.\n"
-            "Le redémarrage de Steam reste manuel."
+        box.addWidget(advanced)
+        advanced.hide()
+        toggle.toggled.connect(advanced.setVisible)
+        toggle.toggled.connect(
+            lambda checked: toggle.setText(
+                "Masquer la configuration Switch" if checked else "Afficher la configuration Switch"
+            )
         )
-        hint.setObjectName("muted")
-        hint.setWordWrap(True)
-        layout.addWidget(hint)
+        content.addWidget(panel)
 
+        panel, box = section(
+            "Steam & diagnostic",
+            "Dans Steam ROM Manager : Parse → Preview → Save apps to Steam. Le redémarrage de Steam reste manuel.",
+        )
+        actions = QHBoxLayout()
         srm = QPushButton("Ouvrir Steam ROM Manager")
         srm.clicked.connect(self.open_srm)
-        layout.addWidget(srm)
-
+        actions.addWidget(srm)
         doctor = QPushButton("Diagnostic local")
         doctor.clicked.connect(self.diagnose)
-        layout.addWidget(doctor)
-        layout.addStretch(1)
+        actions.addWidget(doctor)
+        box.addLayout(actions)
+        content.addWidget(panel)
+        content.addStretch()
+        scroll.setWidget(body)
+        layout.addWidget(scroll, stretch=1)
+        footer = QHBoxLayout()
+        self.save_status = QLabel("Les modifications s’appliquent après enregistrement.")
+        self.save_status.setObjectName("muted")
+        self.save_status.setWordWrap(True)
+        footer.addWidget(self.save_status, stretch=1)
+        save = QPushButton("Enregistrer les modifications")
+        save.setObjectName("primary")
+        save.clicked.connect(self.save)
+        footer.addWidget(save)
+        layout.addLayout(footer)
 
-        about = QLabel(
-            "Cochwa n'héberge aucun contenu : il interroge des catalogues "
-            "publics (Internet Archive, MiNERVA) et renvoie vers leurs pages."
-        )
-        about.setObjectName("muted")
-        about.setWordWrap(True)
-        layout.addWidget(about)
+    def _make_form(self):
+        form = QFormLayout()
+        form.setSpacing(12)
+        form.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
+        form.setRowWrapPolicy(QFormLayout.WrapLongRows)
+        return form
 
     def _row(self, key, label, value, browse=None, password=False):
         field = QLineEdit(value)
+        field.setMinimumWidth(140)
+        field.setAccessibleName(label)
+        field.textChanged.connect(
+            lambda: self.save_status.setText("Modifications non enregistrées")
+        )
         if password:
             field.setEchoMode(QLineEdit.Password)
         self.values[key] = field
@@ -176,6 +233,7 @@ class SettingsPage(QWidget):
             config.save()
             self.app.covers.results.clear()
             self.app.tab_library.refresh()
+            self.save_status.setText("✓ Paramètres enregistrés")
             self.app.notify("Paramètres enregistrés", "success")
         except Exception as exc:
             (

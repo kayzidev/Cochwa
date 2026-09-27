@@ -9,7 +9,8 @@ from __future__ import annotations
 import sys
 import threading
 
-from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtCore import QObject, QSize, QTimer, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -35,6 +36,7 @@ from cochwa.gui_qt.pages.search import SearchPage
 from cochwa.gui_qt.pages.settings import SettingsPage
 from cochwa.gui_qt.pages.support import SupportPage
 from cochwa.gui_qt.toasts import ToastManager
+from cochwa.gui_qt.widgets import brand_icon, brand_pixmap, navigation_icon
 from cochwa.gui_qt.workers import CoverService, Worker
 from cochwa.services.index import LibraryIndex
 from cochwa.services.jobs import DownloadManager, JobStore
@@ -52,7 +54,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.config = config or Config.load()
         self.setWindowTitle(f"Cochwa — Bibliothèque {DEFAULT_CONSOLE.name}")
-        self.resize(1150, 800)
+        self.setWindowIcon(brand_icon())
+        self.resize(1280, 860)
         self.setMinimumSize(800, 600)
         self.closing = False
         self.work_cancel = threading.Event()
@@ -86,23 +89,25 @@ class MainWindow(QMainWindow):
         self.tab_settings = SettingsPage(self)
         self.tab_support = SupportPage(self)
         for page, label in [
-            (self.tab_search, "◎ Rechercher"),
-            (self.tab_recommended, "◆ Recommandés"),
-            (self.tab_top, "★ Top PS2"),
-            (self.tab_library, "▤ Bibliothèque"),
-            (self.tab_downloads, "⬇ Téléchargements"),
-            (self.tab_settings, "⚙ Paramètres"),
-            (self.tab_support, "❓ Support"),
+            (self.tab_library, "Bibliothèque"),
+            (self.tab_search, "Rechercher"),
+            (self.tab_recommended, "Recommandés"),
+            (self.tab_top, "Top PS2"),
+            (self.tab_downloads, "Téléchargements"),
+            (self.tab_settings, "Paramètres"),
+            (self.tab_support, "Support"),
         ]:
-            QListWidgetItem(label, self.sidebar)
+            QListWidgetItem(navigation_icon(label), label, self.sidebar)
             self.pages.addWidget(page)
         root.addWidget(self.pages, stretch=1)
         self.setCentralWidget(central)
         self.sidebar.currentRowChanged.connect(self.activate)
         self.sidebar.setCurrentRow(0)
+        self.search_shortcut = QShortcut(QKeySequence("Ctrl+K"), self)
+        self.search_shortcut.activated.connect(self.focus_search)
 
         self.toasts = ToastManager(self)
-        self.statusBar().showMessage("Prêt")
+        self.statusBar().showMessage("Vos jeux, simplement.")
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tab_downloads.refresh)
@@ -112,20 +117,29 @@ class MainWindow(QMainWindow):
             self.tab_library.refresh()
 
     def _build_sidepanel(self):
-        """Logo (placeholder), sélecteur de console, puis navigation."""
+        """Identité de marque, plateforme active et navigation clavier native."""
         panel = QWidget()
         panel.setObjectName("sidepanel")
-        panel.setFixedWidth(210)
+        panel.setFixedWidth(218)
         layout = QVBoxLayout(panel)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-        # Emplacement réservé au futur logo Cochwa.
-        self.logo = QLabel("COCHWA")
-        self.logo.setObjectName("logoPlaceholder")
-        self.logo.setAlignment(Qt.AlignCenter)
-        self.logo.setFixedHeight(96)
-        self.logo.setToolTip("Emplacement du futur logo Cochwa")
-        layout.addWidget(self.logo)
+        layout.setContentsMargins(12, 20, 12, 12)
+        layout.setSpacing(8)
+        brand = QHBoxLayout()
+        symbol = QLabel()
+        symbol.setPixmap(brand_pixmap(40))
+        brand.addWidget(symbol)
+        self.logo = QLabel("Cochwa")
+        self.logo.setObjectName("brand")
+        brand.addWidget(self.logo)
+        brand.addStretch()
+        layout.addLayout(brand)
+        slogan = QLabel("VOS JEUX, SIMPLEMENT")
+        slogan.setObjectName("eyebrow")
+        layout.addWidget(slogan)
+        layout.addSpacing(12)
+        platform = QLabel("PLATEFORME")
+        platform.setObjectName("eyebrow")
+        layout.addWidget(platform)
         # Sélecteur de console : PS2 et Switch actives ; les consoles futures
         # non implémentées restent grisées (« (bientôt) »).
         self.console_box = QComboBox()
@@ -141,7 +155,17 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.console_box)
         self.sidebar = QListWidget()
         self.sidebar.setObjectName("sidebar")
+        self.sidebar.setIconSize(QSize(18, 18))
+        self.sidebar.setAccessibleName("Navigation principale")
         layout.addWidget(self.sidebar, stretch=1)
+        self.platform_note = QLabel("Catalogue & recherche\nPlayStation 2")
+        self.platform_note.setObjectName("muted")
+        self.platform_note.setWordWrap(True)
+        layout.addWidget(self.platform_note)
+        shortcut = QLabel("Recherche rapide  ·  Ctrl + K")
+        shortcut.setObjectName("muted")
+        shortcut.setStyleSheet("font-size: 11px;")
+        layout.addWidget(shortcut)
         return panel
 
     def select_console(self, index):
@@ -153,6 +177,8 @@ class MainWindow(QMainWindow):
         if console is self.console:
             return
         self.console = console
+        self.console_box.setCurrentIndex(index)
+        self.tab_search.activate()
         self.setWindowTitle(f"Cochwa — Bibliothèque {console.name}")
         self.tab_library.refresh()
         self.activate(self.sidebar.currentRow())
@@ -170,12 +196,17 @@ class MainWindow(QMainWindow):
         if hasattr(page, "activate"):
             page.activate()
 
+    def focus_search(self):
+        self.sidebar.setCurrentRow(1)
+        self.tab_search.query.setFocus()
+        self.tab_search.query.selectAll()
+
     def show_downloads(self):
         self.sidebar.setCurrentRow(4)
         self.tab_downloads.refresh()
 
     def search_title(self, title):
-        self.sidebar.setCurrentRow(0)
+        self.sidebar.setCurrentRow(1)
         self.tab_search.query.setText(title.split("(")[0].strip())
         self.tab_search.do_search()
 
@@ -251,7 +282,7 @@ def main():
     parser.add_argument("--config", type=Path)
     args = parser.parse_args()
     app = QApplication(sys.argv)
-    app.setStyleSheet(theme.QSS)
+    theme.apply(app)
     window = MainWindow(Config.load(args.config))
     window.show()
     return app.exec()

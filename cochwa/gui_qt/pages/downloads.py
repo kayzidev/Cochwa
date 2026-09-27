@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
 )
 
 from cochwa.gui_qt import theme
+from cochwa.gui_qt.widgets import EmptyState, PageHeader
 from cochwa.util import human_duration, human_size
 
 # Fenêtre glissante pour la vitesse moyenne (secondes).
@@ -75,11 +76,26 @@ class DownloadsPage(QWidget):
         self.samples = {}
         self.rows = {}
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 8)
+        layout.setContentsMargins(28, 24, 28, 16)
+        layout.setSpacing(14)
+        layout.addWidget(
+            PageHeader(
+                "Vos téléchargements",
+                "Suivez vos transferts et reprenez-les quand vous le souhaitez.",
+                "VOTRE ACTIVITÉ",
+            )
+        )
+        self.summary = QLabel("Aucun transfert en cours")
+        self.summary.setObjectName("muted")
+        layout.addWidget(self.summary)
 
         self.model = DownloadsModel(self)
         self.table = QTableView()
         self.table.setModel(self.model)
+        self.table.setShowGrid(False)
+        self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.table.setWordWrap(False)
+        self.table.verticalHeader().setDefaultSectionSize(52)
         self.table.setSelectionBehavior(QTableView.SelectRows)
         self.table.setSelectionMode(QTableView.SingleSelection)
         self.table.verticalHeader().setVisible(False)
@@ -90,9 +106,12 @@ class DownloadsPage(QWidget):
         self.table.selectionModel().selectionChanged.connect(lambda *_: self.selected())
         layout.addWidget(self.table, stretch=1)
 
-        self.empty = QLabel("Aucun téléchargement en file — les jeux choisis apparaîtront ici.")
-        self.empty.setObjectName("empty")
-        self.empty.setAlignment(Qt.AlignCenter)
+        self.empty = EmptyState(
+            "Tout est calme ici",
+            "Choisissez un jeu dans le catalogue, puis ajoutez les fichiers souhaités à la file.",
+            "Explorer le catalogue",
+            self.app.focus_search,
+        )
         layout.addWidget(self.empty, stretch=1)
 
         self.progress = QProgressBar()
@@ -100,6 +119,7 @@ class DownloadsPage(QWidget):
         layout.addWidget(self.progress)
 
         buttons = QHBoxLayout()
+        self.actions = {}
         for label, callback in [
             ("Pause", lambda key: app.manager.pause(key)),
             ("Reprendre", self.resume),
@@ -107,6 +127,10 @@ class DownloadsPage(QWidget):
         ]:
             button = QPushButton(label)
             button.clicked.connect(lambda checked=False, cb=callback: self.act(cb))
+            self.actions[label] = button
+            button.setEnabled(False)
+            if label == "Annuler":
+                button.setObjectName("danger")
             buttons.addWidget(button)
         buttons.addStretch(1)
         layout.addLayout(buttons)
@@ -114,7 +138,12 @@ class DownloadsPage(QWidget):
             "Les fichiers partiels sont conservés. Une tâche interrompue reprend sur demande."
         )
         hint.setObjectName("muted")
+        hint.setWordWrap(True)
         layout.addWidget(hint)
+        self.refresh()
+
+    def activate(self):
+        self.refresh()
 
     def act(self, callback):
         key = self.selected_key()
@@ -135,6 +164,11 @@ class DownloadsPage(QWidget):
     def selected(self):
         key = self.selected_key()
         row = self.rows.get(key) if key else None
+        status = row["status"] if row else None
+        self.actions["Pause"].setEnabled(status in {"queued", "running"})
+        self.actions["Reprendre"].setEnabled(status in {"paused", "failed", "cancelled"})
+        self.actions["Annuler"].setEnabled(status in {"queued", "running", "paused"})
+        self.progress.setVisible(row is not None)
         self._set_progress(round(100 * row["progress"] / max(1, row["total"])) if row else 0)
 
     def _set_progress(self, target):
@@ -142,14 +176,19 @@ class DownloadsPage(QWidget):
         if abs(self.progress.value() - target) < 1:
             self.progress.setValue(target)
             return
+        previous = getattr(self, "_anim", None)
+        if previous is not None:
+            previous.stop()
+            previous.deleteLater()
         self._anim = QPropertyAnimation(self.progress, b"value", self)
         self._anim.setDuration(300)
         self._anim.setStartValue(self.progress.value())
         self._anim.setEndValue(target)
         self._anim.setEasingCurve(QEasingCurve.OutCubic)
-        self._anim.start(QPropertyAnimation.DeleteWhenStopped)
+        self._anim.start()
 
     def refresh(self):
+        selected_key = self.selected_key()
         now = time.monotonic()
         rows = []
         for row in self.app.store.list():
@@ -173,7 +212,19 @@ class DownloadsPage(QWidget):
             self.rows[key] = row
             rows.append(row)
         self.model.set_rows(rows)
+        self.rows = {row["id"]: row for row in rows}
+        for index, row in enumerate(rows):
+            if row["id"] == selected_key:
+                self.table.selectRow(index)
+                break
+        active = sum(row["status"] in {"running", "queued"} for row in rows)
+        complete = sum(row["status"] == "completed" for row in rows)
+        self.summary.setText(
+            f"{active} en cours ou en attente  ·  {complete} terminé(s)  ·  {len(rows)} au total"
+        )
         has_rows = bool(rows)
         self.table.setVisible(has_rows)
         self.empty.setVisible(not has_rows)
+        for button in self.actions.values():
+            button.setVisible(has_rows)
         self.selected()

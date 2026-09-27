@@ -32,10 +32,12 @@ def window(qtbot, tmp_path):
     return win
 
 
-def test_console_selector_and_logo_placeholder(window):
+def test_console_selector_and_brand(window):
     from cochwa.consoles import CONSOLES, DEFAULT_CONSOLE
 
-    assert window.logo.text() == "COCHWA"  # emplacement du futur logo
+    assert window.logo.text() == "Cochwa"
+    assert not window.windowIcon().isNull()
+    assert window.pages.currentWidget() is window.tab_library
     assert window.console is DEFAULT_CONSOLE
     assert window.console_box.count() == len(CONSOLES)
     states = [
@@ -72,12 +74,12 @@ def test_switch_library_uses_console_settings(window, tmp_path):
 
 def test_voir_les_editions_declenche_la_recherche(window, qtbot):
     """Régression : clicked(bool) ne doit pas écraser le titre du lambda."""
-    window.sidebar.setCurrentRow(1)  # Recommandés → cartes rendues
+    window.sidebar.setCurrentRow(2)  # Recommandés → cartes rendues
     assert window.tab_recommended.grid.cards
     card = window.tab_recommended.grid.cards[0]
     with patch.object(window.search, "search", return_value=SearchResult()) as mock:
         card.button.click()
-        assert window.sidebar.currentRow() == 0
+        assert window.sidebar.currentRow() == 1
         expected = card.base_title
         assert window.tab_search.query.text() == expected
         qtbot.waitUntil(lambda: mock.called, timeout=2000)  # recherche en worker
@@ -98,7 +100,7 @@ def test_support_page_links(window):
 
 def test_tabs_and_responsive_grid(window, qtbot):
     assert window.sidebar.count() == 7
-    window.sidebar.setCurrentRow(1)
+    window.sidebar.setCurrentRow(2)
     assert len(window.tab_recommended.grid.cards) == 20
     window.resize(800, 600)
     qtbot.wait(100)
@@ -163,4 +165,99 @@ def test_source_selection_dialog(window):
     dialog = window.details(game)
     assert isinstance(dialog, QDialog)
     assert dialog.table.rowCount() == 1
+    dialog.close()
+
+
+def test_download_selection_survives_refresh(window):
+    page = window.tab_downloads
+    rows = [
+        dict(id="a", title="Premier", status="running", progress=25, total=100, error=""),
+        dict(id="b", title="Second", status="paused", progress=10, total=100, error=""),
+    ]
+    with patch.object(window.store, "list", return_value=rows):
+        page.refresh()
+        page.table.selectRow(1)
+        page.refresh()
+        assert page.selected_key() == "b"
+        assert page.actions["Reprendre"].isEnabled()
+        assert not page.actions["Pause"].isEnabled()
+        with patch.object(window.manager, "pause") as pause:
+            page.actions["Annuler"].click()
+            pause.assert_called_once_with("b", True)
+
+
+def test_empty_library_and_filter_have_distinct_actions(window, tmp_path):
+    from cochwa.services.library import InstalledGame
+
+    page = window.tab_library
+    page.games = [InstalledGame("Game", [tmp_path / "Game.iso"], 5, "Non vérifié", tmp_path)]
+    page.query.setText("absent")
+    assert page.grid.empty.title.text() == "Aucun jeu correspondant"
+    page.grid.empty.button.click()
+    assert page.query.text() == ""
+    assert len(page.grid.cards) == 1
+    with patch.object(page, "launch") as launch:
+        page.grid.cards[0].button.click()
+        launch.assert_called_once_with(page.games[0])
+
+
+def test_remote_selection_disables_enqueue_when_empty(window):
+    game = IAGame("fixture", "Title", "Title", [{"name": "disc.iso", "size": 6}], "disc.iso", 6)
+    dialog = window.details(game)
+    assert dialog.enqueue_button.isEnabled()
+    dialog.table.clearSelection()
+    assert not dialog.enqueue_button.isEnabled()
+    dialog.table.selectAll()
+    assert dialog.enqueue_button.isEnabled()
+    dialog.close()
+
+
+def test_console_change_discards_inflight_search(window):
+    page = window.tab_search
+    page.generation = 8
+    window.select_console(1)
+    page.show(SearchResult(games=[IAGame("old", "PS2", "PS2", [], None, 0)]), 8)
+    assert not page.grid.cards
+    assert not page.query.isEnabled()
+    assert not page.next.isEnabled()
+    window.select_console(0)
+    assert page.query.isEnabled()
+
+
+def test_search_filters_are_captured_before_worker_runs(window):
+    page = window.tab_search
+    page.query.setText("Game")
+    page.region.setCurrentText("Europe")
+    with patch.object(window.worker, "submit") as submit:
+        page.do_search()
+        work = submit.call_args.args[0]
+        page.region.setCurrentText("USA")
+        with patch.object(window.search, "search", return_value=SearchResult()) as search:
+            work()
+            assert search.call_args.kwargs["region"] == "Europe"
+            assert search.call_args.kwargs["language"] == ""
+
+
+def test_ctrl_k_opens_search(window, qtbot):
+    from PySide6.QtCore import Qt
+
+    window.activateWindow()
+    qtbot.wait(20)
+    qtbot.keyClick(window, Qt.Key_K, Qt.ControlModifier)
+    assert window.pages.currentWidget() is window.tab_search
+    assert window.tab_search.query.hasFocus()
+
+
+def test_local_details_prefers_chd_and_enables_conversion_for_source_only(window, tmp_path):
+    from cochwa.services.library import InstalledGame
+
+    game = InstalledGame(
+        "Game", [tmp_path / "Game.iso", tmp_path / "Game.chd"], 5, "Importé", tmp_path
+    )
+    dialog = window.local_details(game)
+    assert dialog.chosen().suffix == ".chd"
+    assert not dialog.convert_button.isEnabled()
+    dialog.paths.setCurrentRow(0)
+    assert dialog.convert_button.isEnabled()
+    assert dialog.media.currentData() == "dvd"
     dialog.close()

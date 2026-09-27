@@ -2,6 +2,22 @@
 
 Date : 2026-09-27 (Europe/Paris), mise à jour soir.
 
+## Session 11 (2026-09-27) — identité Cochwa et refonte UI/UX
+
+- Références utilisateur : `charteGraphique.md` et `PlancheGraphique.png`.
+- Sept écrans et dialogues harmonisés : palette violette/corail, Geist embarquée,
+  logo vectoriel, bibliothèque à l'ouverture, navigation et focus clavier.
+- Jouer directement depuis les cartes ; outils regroupés et détails avancés repliables.
+- Recherche : états vides/actionnables, réessai, filtres, Ctrl+K ; lecture des
+  filtres sur le thread GUI et annulation des résultats à la bascule de console.
+- Transferts : sélection persistante au rafraîchissement et actions selon l'état.
+- Paramètres défilants regroupés, Switch locale facultative ; catalogue/recherche PS2.
+- Détails et reproduction : `docs/UI_DESIGN.md`. Captures dans `docs/validation/cochwa/`.
+- Validation finale : 99 tests + 10 sous-tests réussis, 5 tests réseau désactivés ;
+  ruff lint/format propres et contrôles visuels 1280×860 / 800×600.
+- Configuration, bibliothèque réelle et fichiers de ROMs conservés. Build isolé
+  avec polices, licence et icônes embarquées contrôlé.
+
 ## Session 10 (2026-09-27) — fix « Voir les éditions » + Switch locale + page Support
 
 - **Fix « Voir les éditions »** : `QPushButton.clicked` émet un booléen `checked`

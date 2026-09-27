@@ -14,7 +14,7 @@ from PySide6.QtCore import (
     Qt,
     QVariantAnimation,
 )
-from PySide6.QtGui import QColor, QPainter, QPainterPath, QPixmap
+from PySide6.QtGui import QColor, QFont, QLinearGradient, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QHBoxLayout,
@@ -26,7 +26,7 @@ from PySide6.QtWidgets import (
 
 from cochwa.gui_qt import theme
 
-COVER_W, COVER_H = 150, 225
+COVER_W, COVER_H = 190, 214
 
 
 def pad_cover(path, size=(COVER_W, COVER_H)):
@@ -43,9 +43,37 @@ def pad_cover(path, size=(COVER_W, COVER_H)):
     return _round(canvas, 8)
 
 
-def placeholder_pixmap(size=(COVER_W, COVER_H)):
-    canvas = QPixmap(size[0], size[1])
-    canvas.fill(QColor("#2b3340"))
+def placeholder_pixmap(size=(COVER_W, COVER_H), title="Cochwa"):
+    """Pochette typographique, explicitement distincte d'une vraie jaquette."""
+    import hashlib
+
+    canvas = QPixmap(*size)
+    canvas.fill(QColor(theme.CARD))
+    painter = QPainter(canvas)
+    painter.setRenderHint(QPainter.Antialiasing)
+    colors = ["#51458A", "#38476B", "#644152", "#315C59"]
+    color = colors[hashlib.sha256(title.encode()).digest()[0] % len(colors)]
+    gradient = QLinearGradient(0, 0, size[0], size[1])
+    gradient.setColorAt(0, QColor(color))
+    gradient.setColorAt(1, QColor(theme.PANEL))
+    painter.fillRect(canvas.rect(), gradient)
+    painter.setPen(QColor(255, 255, 255, 24))
+    painter.setBrush(Qt.NoBrush)
+    for offset in (0, 24, 48):
+        painter.drawEllipse(QRectF(70 + offset, -50 + offset, 170, 170))
+    painter.setPen(QColor(theme.TEXT))
+    font = QFont()
+    font.setPixelSize(36)
+    font.setWeight(QFont.DemiBold)
+    painter.setFont(font)
+    initials = "".join(w[0] for w in title.split()[:2]).upper()
+    painter.drawText(QRectF(18, 60, size[0] - 36, 70), Qt.AlignCenter, initials)
+    font.setPixelSize(10)
+    font.setWeight(QFont.Normal)
+    painter.setFont(font)
+    painter.setPen(QColor("#C9C5DB"))
+    painter.drawText(QRectF(0, size[1] - 30, size[0], 20), Qt.AlignCenter, "JAQUETTE À AJOUTER")
+    painter.end()
     return _round(canvas, 8)
 
 
@@ -87,12 +115,14 @@ class GameCard(QWidget):
         action_text="Détails",
         on_double_click=None,
         parent=None,
+        secondary_action=None,
+        secondary_text="Détails",
     ):
         super().__init__(parent)
         self.setObjectName("card")
         self.setAttribute(Qt.WA_StyledBackground, True)  # QSS sur QWidget
         self.setProperty("hover", False)
-        self.setFixedSize(210, 366)
+        self.setFixedSize(216, 440 if secondary_action else 400)
         self._cover = None  # QPixmap final, base du zoom au survol
         self._on_double_click = on_double_click
         self.base_title = title.split("(")[0].strip()
@@ -104,21 +134,24 @@ class GameCard(QWidget):
         self.cover_label = QLabel()
         self.cover_label.setFixedSize(COVER_W, COVER_H)
         self.cover_label.setAlignment(Qt.AlignCenter)
-        self.cover_label.setPixmap(placeholder_pixmap())
+        self.cover_label.setPixmap(placeholder_pixmap(title=self.base_title))
         layout.addWidget(self.cover_label, alignment=Qt.AlignHCenter)
 
         self._raw_title = title
         self.title_label = QLabel(elide_two_lines(title, self.fontMetrics(), 186))
         self.title_label.setObjectName("cardTitle")
-        self.title_label.setAlignment(Qt.AlignHCenter | Qt.AlignTop)
-        self.title_label.setFixedHeight(34)
+        self.title_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        self.title_label.setToolTip(title)
+        self.setAccessibleName(title)
+        self.title_label.setFixedHeight(38)
         layout.addWidget(self.title_label)
 
         self.meta_label = QLabel(
             self.fontMetrics().elidedText(subtitle, Qt.ElideRight, 186) if subtitle else ""
         )
         self.meta_label.setObjectName("cardMeta")
-        self.meta_label.setAlignment(Qt.AlignHCenter)
+        self.meta_label.setToolTip(subtitle)
+        self.meta_label.setAlignment(Qt.AlignLeft)
         layout.addWidget(self.meta_label)
 
         if badges:
@@ -127,7 +160,7 @@ class GameCard(QWidget):
             for text, color in badges:
                 chip = QLabel(text)
                 chip.setObjectName("chip")
-                chip.setStyleSheet(f"color: {color}; border: 1px solid {color};")
+                chip.setStyleSheet(f"color: {color}; background: {theme.CARD};")
                 chips.addWidget(chip)
             chips.addStretch(1)
             layout.addLayout(chips)
@@ -142,14 +175,20 @@ class GameCard(QWidget):
 
         layout.addStretch(1)
         self.button = QPushButton(action_text)
-        self.button.setObjectName("cardBtn")
+        self.button.setObjectName("primary" if secondary_action else "cardBtn")
         self.button.setCursor(Qt.PointingHandCursor)
         if action:
             # clicked émet un booléen « checked » : sans ce relais il serait
             # passé en premier argument de l'action (écrasant le paramètre
             # par défaut du lambda — « Voir les éditions » recevait False).
             self.button.clicked.connect(lambda _checked=False, act=action: act())
+        self.button.setAccessibleName(f"{action_text} : {title}")
         layout.addWidget(self.button)
+        if secondary_action:
+            details = QPushButton(secondary_text)
+            details.setObjectName("secondaryAction")
+            details.clicked.connect(lambda: secondary_action())
+            layout.addWidget(details)
 
         # Les labels laissent passer la souris : le survol de la carte reste
         # détecté même au-dessus du texte ou de la jaquette.

@@ -8,6 +8,7 @@ from cochwa.catalog import genres, recommended_entries, recommended_pool, top_en
 from cochwa.gui_qt import theme
 from cochwa.gui_qt.cards import GameCard
 from cochwa.gui_qt.grid import CardGrid
+from cochwa.gui_qt.widgets import PageHeader
 
 
 class GameListPage(QWidget):
@@ -15,15 +16,19 @@ class GameListPage(QWidget):
         super().__init__()
         self.app = app
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 12, 16, 8)
-        self.heading = QLabel(label)
-        self.heading.setObjectName("heading")
-        layout.addWidget(self.heading)
-        bar = QHBoxLayout()
-        hint = QLabel(
-            "Liste de découverte ; choisir une édition dans les résultats avant téléchargement."
+        layout.setContentsMargins(28, 24, 28, 16)
+        layout.setSpacing(14)
+        header = PageHeader(
+            "Les incontournables" if genre_filter else "Une nouvelle envie de jouer ?",
+            label,
+            "DÉCOUVRIR · PLAYSTATION 2",
         )
+        self.heading = header.title
+        layout.addWidget(header)
+        bar = QHBoxLayout()
+        hint = QLabel("Une sélection à explorer, édition par édition.")
         hint.setObjectName("muted")
+        hint.setWordWrap(True)
         bar.addWidget(hint, stretch=1)
         self.genre = None
         if genre_filter:
@@ -33,6 +38,9 @@ class GameListPage(QWidget):
             self.genre.currentTextChanged.connect(lambda _: self.render())
             bar.addWidget(self.genre)
         layout.addLayout(bar)
+        self.count = QLabel("")
+        self.count.setObjectName("platformBadge")
+        bar.addWidget(self.count)
         self.grid = CardGrid()
         layout.addWidget(self.grid, stretch=1)
         self.app.covers.loaded.connect(self._on_cover)
@@ -48,6 +56,7 @@ class GameListPage(QWidget):
     def render(self):
         self.grid.clear()
         if self.app.console.id != "ps2":
+            self.count.setText("Catalogue PS2")
             self.grid.set_empty(
                 "Listes de découverte PS2 — le catalogue Switch arrivera avec sa "
                 "source de recherche. La bibliothèque Switch est dans l'onglet Bibliothèque."
@@ -78,6 +87,7 @@ class GameListPage(QWidget):
             )
             self.grid.add(card, index=i)
             self.app.cover(card, title)
+        self.count.setText(f"{len(self.grid.cards)} jeux")
         self.grid.set_empty("Aucun jeu pour ce genre." if selected else "")
 
     def _on_cover(self, base, path):
