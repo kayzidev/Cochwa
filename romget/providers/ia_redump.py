@@ -5,7 +5,6 @@ from pathlib import Path
 from romget.api.redump import get_datfile
 from romget.config import Config
 from romget.services.download import download
-from romget.services.search import SearchService
 
 
 class IARedumpProvider:
@@ -14,6 +13,8 @@ class IARedumpProvider:
     platform = "ps2"
 
     def __init__(self, config):
+        from romget.services.search import SearchService
+
         self.config = config
         self.service = SearchService(Config(providers={"ia_redump": config}))
 

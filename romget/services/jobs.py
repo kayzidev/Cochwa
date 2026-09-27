@@ -39,6 +39,8 @@ class JobStore:
             db.close()
 
     def add(self, game, names, root):
+        if game.external or game.source != "ia_redump":
+            raise ValueError("Cette source utilise un téléchargement externe ; ouvrir sa fiche")
         if not Path(root).is_dir():
             raise FileNotFoundError(
                 "Dossier ROMs absent ; vérifier le montage avant de télécharger"

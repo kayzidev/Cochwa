@@ -38,6 +38,15 @@ class SearchTab(ttk.Frame):
             values=["", "Fr", "En", "De", "Es", "It", "Ja"],
             width=5,
         ).pack(side="left")
+        self.source = tk.StringVar(value="Toutes")
+        ttk.Label(filters, text="Source").pack(side="left", padx=5)
+        ttk.Combobox(
+            filters,
+            textvariable=self.source,
+            values=["Toutes", "Internet Archive", "MiNERVA"],
+            state="readonly",
+            width=16,
+        ).pack(side="left")
         self.status = tk.StringVar(
             value="Chercher un titre ; les fichiers et éditions seront proposés avant téléchargement."
         )
@@ -69,6 +78,9 @@ class SearchTab(ttk.Frame):
         page = max(1, page)
         self.page = page
         verified, region, language = self.verified.get(), self.region.get(), self.language.get()
+        source = {"Toutes": "all", "Internet Archive": "ia_redump", "MiNERVA": "minerva"}[
+            self.source.get()
+        ]
         self.grid.clear()
         self.status.set(f"Recherche « {query} » — page {page}…")
         self.prev.state(["disabled"])
@@ -76,6 +88,7 @@ class SearchTab(ttk.Frame):
         self.app.dispatch.submit(
             lambda: self.app.search.search(
                 query,
+                source=source,
                 page=page,
                 verified_only=verified,
                 region=region,
@@ -98,7 +111,7 @@ class SearchTab(ttk.Frame):
             + " / ".join(result.warnings)
         )
         self.prev.state(["!disabled"] if self.page > 1 else ["disabled"])
-        self.next.state(["!disabled"] if self.page * 20 < result.total_items else ["disabled"])
+        self.next.state(["!disabled"] if result.has_more else ["disabled"])
         if result.suggestions:
             self.status.set(
                 self.status.get() + " · Suggestions : " + " / ".join(result.suggestions)
@@ -108,11 +121,14 @@ class SearchTab(ttk.Frame):
             card = self.grid.add(
                 key=game.identifier or game.clean_title,
                 title=game.clean_title,
-                subtitle=game.label,
+                subtitle=game.label
+                + (f" · {len(game.alternatives)} copie(s)" if game.alternatives else ""),
                 size_bytes=game.total_size,
                 action=lambda g=game: self.app.details(g),
-                action_text="Choisir les fichiers",
+                action_text="Voir la source torrent" if game.external else "Choisir les fichiers",
             )
-            self.app.cover(card, game.clean_title, ia_identifier=game.identifier)
+            self.app.cover(
+                card, game.clean_title, ia_identifier=None if game.external else game.identifier
+            )
         self.grid.set_empty("" if result.games else "Aucun résultat pour cette recherche.")
         self.grid.commit()
