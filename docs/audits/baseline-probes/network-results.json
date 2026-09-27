@@ -1,0 +1,16 @@
+{
+  "ia_search": {
+    "status": 200,
+    "numFound": 37,
+    "returned": 2
+  },
+  "sgdb_current": {
+    "status": 404,
+    "content_type": "text/html; charset=UTF-8"
+  },
+  "sgdb_path": {
+    "status": 200,
+    "content_type": "application/json",
+    "results": 10
+  }
+}

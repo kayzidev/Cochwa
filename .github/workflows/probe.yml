@@ -1,0 +1,20 @@
+name: probes
+on:
+  schedule:
+    - cron: '0 6 * * 1' # chaque lundi à 06:00 UTC
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  public-search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: python -m pip install -e .
+      # Sonde de non-régression sur la recherche IA publique (aucune clé lue).
+      - run: python tools/check_public_search.py
+      # Tests d'intégration réseau réels (IA ; SGDB sauté sans clé).
+      - run: ROMGET_NETWORK_TESTS=1 python -m unittest tests.test_integration_network -v

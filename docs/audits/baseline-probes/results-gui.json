@@ -1,0 +1,49 @@
+{
+  "resume_200": {
+    "success": true,
+    "bytes": "abcabcdef",
+    "expected": "abcdef"
+  },
+  "same_size_wrong_content": {
+    "success": true,
+    "network_called": false
+  },
+  "wrong_final_size": {
+    "success": true,
+    "actual": 6,
+    "expected": 10
+  },
+  "expired_cache_fallback": false,
+  "chd_remaining_files": [
+    "disc1.chd"
+  ],
+  "path_escape": true,
+  "custom_config_missing": "FileNotFoundError",
+  "title_only_marked_verified": true,
+  "gui_tabs": [
+    "🔎 Rechercher",
+    "⭐ Recommandés",
+    "🏆 Top par console",
+    "📚 Bibliothèque"
+  ],
+  "gui_library_cards": 5,
+  "gui_library_geometry": {
+    "canvas": 1045,
+    "grid": 848
+  },
+  "gui_overlapping_result_cards": 2,
+  "gui_unverified_labels": [
+    "",
+    "Fixture",
+    "PS2 ✓",
+    "600.0 MB"
+  ],
+  "gui_error_callback": "NameError: cannot access free variable 'e' where it is not associated with a value in enclosing scope",
+  "gui_empty_directory_installed": true,
+  "gui_minimum_geometry": {
+    "canvas": 845,
+    "grid": 848
+  },
+  "gui_mousewheel_binding": "",
+  "gui_capture_error": "OSError: X get_image failed: error 8 (73, 0, 883)"
+}

@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "romget"
+version = "0.2.0"
+description = "Bibliothèque PS2, transferts vérifiés et intégration PCSX2 / Steam ROM Manager"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "lucas" }]
+dependencies = ["requests>=2.31,<3", "Pillow>=10,<13"]
+
+[project.optional-dependencies]
+dev = ["ruff==0.15.6", "build>=1,<2"]
+
+[project.scripts]
+romget = "romget.cli:main"
+romget-gui = "romget.gui.app:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["romget*"]
+
+[tool.setuptools.package-data]
+"romget.data" = ["*.json"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+exclude = ["audit", ".venv"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
