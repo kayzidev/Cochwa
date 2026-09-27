@@ -218,7 +218,9 @@ def test_console_change_discards_inflight_search(window):
     window.select_console(1)
     page.show(SearchResult(games=[IAGame("old", "PS2", "PS2", [], None, 0)]), 8)
     assert not page.grid.cards
-    assert not page.query.isEnabled()
+    assert page.query.isEnabled()
+    assert page.platform == "switch"
+    assert not page.verified.isVisible()
     assert not page.next.isEnabled()
     window.select_console(0)
     assert page.query.isEnabled()
@@ -261,3 +263,36 @@ def test_local_details_prefers_chd_and_enables_conversion_for_source_only(window
     assert dialog.convert_button.isEnabled()
     assert dialog.media.currentData() == "dvd"
     dialog.close()
+
+
+def test_platform_navigation_and_search_state_are_isolated(window):
+    window.tab_search.query.setText("Gran Turismo")
+    window.select_console(1)
+    assert window.sidebar.item(3).text() == "Top Switch"
+    assert "SWITCH" in window.tab_search.header.eyebrow.text()
+    window.sidebar.setCurrentRow(3)
+    assert window.tab_top.grid.cards
+    assert not any("Gran Turismo" in c.base_title for c in window.tab_top.grid.cards)
+    window.tab_search.query.setText("Mario")
+    window.select_console(0)
+    assert window.sidebar.item(3).text() == "Top PS2"
+    assert window.tab_search.query.text() == "Gran Turismo"
+    window.select_console(1)
+    assert window.tab_search.query.text() == "Mario"
+
+
+def test_download_delete_button_uses_selected_task(window):
+    from PySide6.QtWidgets import QMessageBox
+
+    row = dict(id="remove-me", title="Game", status="completed", progress=10, total=10, error="")
+    with (
+        patch.object(window.store, "list", return_value=[row]),
+        patch.object(QMessageBox, "question", return_value=QMessageBox.Yes),
+        patch.object(window.manager, "remove") as remove,
+    ):
+        page = window.tab_downloads
+        page.refresh()
+        page.table.selectRow(0)
+        assert page.actions["Supprimer"].isEnabled()
+        page.actions["Supprimer"].click()
+        remove.assert_called_once_with("remove-me")

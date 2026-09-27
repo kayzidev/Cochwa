@@ -9,8 +9,8 @@ import subprocess
 def trigger_srm_reparse(flatpak_id: str = "com.steamgriddb.steam-rom-manager") -> bool:
     """Indique à l'utilisateur de re-parser dans SRM.
 
-    SRM n'a pas d'API CLI pour déclencher un parse automatique. On ouvre
-    simplement l'application et on guide l'utilisateur.
+    Ce raccourci historique ouvre seulement SRM. L’assistant graphique utilise
+    services.srm pour installer les préréglages et appeler la commande add.
     """
     if shutil.which("flatpak") is None:
         print("[steam] flatpak non trouvé")

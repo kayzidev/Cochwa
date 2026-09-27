@@ -30,16 +30,17 @@ class SearchPage(QWidget):
         self.generation = 0
         self.cancel = threading.Event()
         self.page = 1
+        self.platform = app.console.id
+        self.contexts = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 16)
         layout.setSpacing(14)
-        layout.addWidget(
-            PageHeader(
-                "Explorer le catalogue",
-                "Retrouvez un jeu, puis choisissez l’édition qui vous correspond.",
-                "DÉCOUVRIR · PLAYSTATION 2",
-            )
+        self.header = PageHeader(
+            "Explorer le catalogue",
+            "Retrouvez un jeu, puis choisissez l’édition qui vous correspond.",
+            "DÉCOUVRIR · PLAYSTATION 2",
         )
+        layout.addWidget(self.header)
 
         bar = QHBoxLayout()
         self.query = QLineEdit()
@@ -130,45 +131,49 @@ class SearchPage(QWidget):
         self.source.setCurrentIndex(0)
 
     def activate(self):
-        """La recherche n'est branchée que sur des sources PS2 pour l'instant."""
-        ps2 = self.app.console.id == "ps2"
-        self.query.setEnabled(ps2)
-        self.search_btn.setEnabled(ps2)
-        for widget in (self.region, self.language, self.source, self.verified):
-            widget.setEnabled(ps2)
-        if not ps2:
+        console = self.app.console
+        changed = console.id != self.platform
+        if changed:
+            self.contexts[self.platform] = (
+                self.query.text(),
+                self.region.currentText(),
+                self.language.currentText(),
+            )
+            self.platform = console.id
             self.cancel.set()
             self.generation += 1
+            self.grid.clear()
             self.busy.hide()
             self.search_btn.setText("Rechercher")
+            self.page = 1
+            self.page_label.setText("Page 1")
             self.prev.setEnabled(False)
             self.next.setEnabled(False)
-            self.grid.clear()
+            query, region, language = self.contexts.get(self.platform, ("", "Toutes", "Toutes"))
+            self.query.setText(query)
+            self.region.setCurrentText(region)
+            self.language.setCurrentText(language)
+            self.source.clear()
+            self.source.addItems(
+                ["Internet Archive"] if self.platform == "switch" else list(SOURCES)
+            )
             self.grid.set_empty(
-                "Le catalogue disponible est celui de la PlayStation 2. Vous pouvez toujours ouvrir vos jeux Switch dans la bibliothèque.",
-                "Catalogue PlayStation 2",
-                "Ouvrir la bibliothèque",
-                lambda: self.app.sidebar.setCurrentRow(0),
+                f"Recherchez un titre {console.name} pour découvrir ses éditions.",
+                f"Explorer les jeux {console.name}",
             )
-            self._blocked_note = True
+        self.header.eyebrow.setText(f"DÉCOUVRIR · {console.name.upper()}")
+        self.query.setPlaceholderText(f"Rechercher un jeu {console.name}…")
+        self.verified.setVisible(console.disc_based)
+        if not console.disc_based:
+            self.verified.setChecked(False)
+        if changed:
             self.status.setText(
-                f"Recherche {self.app.console.name} indisponible : les sources "
-                "(Internet Archive, MiNERVA) ne sont branchées que sur la PS2. "
-                "La bibliothèque locale Switch est gérée dans l'onglet Bibliothèque."
-            )
-        elif getattr(self, "_blocked_note", False):
-            self._blocked_note = False
-            self.grid.set_empty(
-                "Saisissez un titre PS2 pour découvrir ses éditions.", "Explorer les jeux PS2"
-            )
-            self.status.setText(
-                "Chercher un titre ; les fichiers et éditions seront proposés avant téléchargement."
+                "NSP/XCI : fichiers directs et fiches d’archives externes. Empreintes source, sans certification Redump."
+                if self.platform == "switch"
+                else "Choisissez une édition PS2 avant le téléchargement."
             )
 
     def do_search(self, page=1):
-        if self.app.console.id != "ps2":
-            self.activate()
-            return
         query = self.query.text().strip()
         if not query:
             self.query.setFocus()
@@ -190,7 +195,8 @@ class SearchPage(QWidget):
         self.prev.setEnabled(False)
         self.next.setEnabled(False)
         filters = dict(
-            source=SOURCES[self.source.currentText()],
+            source="ia_switch" if self.platform == "switch" else SOURCES[self.source.currentText()],
+            platform=self.platform,
             verified_only=self.verified.isChecked(),
             region="" if self.region.currentText() == "Toutes" else self.region.currentText(),
             language="" if self.language.currentText() == "Toutes" else self.language.currentText(),
@@ -241,7 +247,7 @@ class SearchPage(QWidget):
                 + (f" · {len(game.alternatives)} copie(s)" if game.alternatives else ""),
                 size_bytes=game.total_size,
                 action=lambda g=game: self.app.details(g),
-                action_text="Voir la source torrent" if game.external else "Choisir les fichiers",
+                action_text="Ouvrir la fiche source" if game.external else "Choisir les fichiers",
             )
             self.grid.add(card, index=i)
             self.app.cover(

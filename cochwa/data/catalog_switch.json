@@ -1,0 +1,125 @@
+{
+  "description": "Sélection éditoriale Cochwa, sans notes agrégées. Ne représente pas la disponibilité des sources.",
+  "games": [
+    {
+      "title": "The Legend of Zelda - Breath of the Wild",
+      "genre": "Action / Aventure",
+      "top_rank": 1
+    },
+    {
+      "title": "Super Mario Odyssey",
+      "genre": "Plateforme",
+      "top_rank": 2
+    },
+    {
+      "title": "The Legend of Zelda - Tears of the Kingdom",
+      "genre": "Action / Aventure",
+      "top_rank": 3
+    },
+    {
+      "title": "Mario Kart 8 Deluxe",
+      "genre": "Course",
+      "top_rank": 4
+    },
+    {
+      "title": "Super Smash Bros. Ultimate",
+      "genre": "Combat",
+      "top_rank": 5
+    },
+    {
+      "title": "Metroid Dread",
+      "genre": "Action / Aventure",
+      "top_rank": 6
+    },
+    {
+      "title": "Animal Crossing - New Horizons",
+      "genre": "Simulation",
+      "top_rank": 7
+    },
+    {
+      "title": "Super Mario Bros. Wonder",
+      "genre": "Plateforme",
+      "top_rank": 8
+    },
+    {
+      "title": "Fire Emblem - Three Houses",
+      "genre": "Stratégie",
+      "top_rank": 9
+    },
+    {
+      "title": "Xenoblade Chronicles 3",
+      "genre": "RPG",
+      "top_rank": 10
+    },
+    {
+      "title": "Luigi’s Mansion 3",
+      "genre": "Action / Aventure",
+      "top_rank": 11
+    },
+    {
+      "title": "Splatoon 3",
+      "genre": "Action",
+      "top_rank": 12
+    },
+    {
+      "title": "Hollow Knight",
+      "genre": "Action / Aventure",
+      "recommended": true
+    },
+    {
+      "title": "Celeste",
+      "genre": "Plateforme",
+      "recommended": true
+    },
+    {
+      "title": "Hades",
+      "genre": "Action / RPG",
+      "recommended": true
+    },
+    {
+      "title": "Stardew Valley",
+      "genre": "Simulation",
+      "recommended": true
+    },
+    {
+      "title": "Octopath Traveler II",
+      "genre": "RPG",
+      "recommended": true
+    },
+    {
+      "title": "Pikmin 4",
+      "genre": "Stratégie",
+      "recommended": true
+    },
+    {
+      "title": "Kirby and the Forgotten Land",
+      "genre": "Plateforme",
+      "recommended": true
+    },
+    {
+      "title": "Donkey Kong Country - Tropical Freeze",
+      "genre": "Plateforme",
+      "recommended": true
+    },
+    {
+      "title": "Captain Toad - Treasure Tracker",
+      "genre": "Réflexion",
+      "recommended": true
+    },
+    {
+      "title": "Mario + Rabbids - Sparks of Hope",
+      "genre": "Stratégie",
+      "recommended": true
+    },
+    {
+      "title": "Paper Mario - The Thousand-Year Door",
+      "genre": "RPG",
+      "recommended": true
+    },
+    {
+      "title": "Astral Chain",
+      "genre": "Action",
+      "recommended": true
+    }
+  ]
+}

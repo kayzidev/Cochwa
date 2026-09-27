@@ -179,6 +179,13 @@ class MainWindow(QMainWindow):
         self.console = console
         self.console_box.setCurrentIndex(index)
         self.tab_search.activate()
+        self.sidebar.item(3).setText(f"Top {console.short_name}")
+        self.platform_note.setText(f"Catalogue & bibliothèque\n{console.name}")
+        self.tab_library.games = []
+        self.tab_library.grid.clear()
+        self.tab_recommended.grid.clear()
+        self.tab_top.grid.clear()
+        self.tab_downloads.refresh()
         self.setWindowTitle(f"Cochwa — Bibliothèque {console.name}")
         self.tab_library.refresh()
         self.activate(self.sidebar.currentRow())

@@ -1,6 +1,6 @@
 # Cochwa
 
-Bibliothèque de ROMs pour Linux — actuellement PS2 : recherche multi-sources Internet Archive et MiNERVA, sélection explicite des éditions et disques, téléchargements vérifiés et reprenables, lancement PCSX2, jaquettes et ouverture de Steam ROM Manager. L'interface est prête pour le multiconsole (sélecteur en sidebar) ; la Switch est la prochaine console prévue.
+Bibliothèque de ROMs pour Linux : PS2 et Nintendo Switch, recherche Internet Archive (et MiNERVA pour la PS2), téléchargements vérifiés et reprenables, jaquettes, lanceurs par console et préréglages Steam ROM Manager générés depuis Cochwa.
 
 ## Contenu hébergé : aucun
 
@@ -51,6 +51,21 @@ cochwa --json doctor
 
 La recherche interroge les sources activées en parallèle. MiNERVA ouvre une fiche torrent à utiliser dans un client externe ; la file de téléchargement Cochwa reste réservée à Internet Archive. `--limit` s’applique par source. Voir [les sources et filtres](docs/SOURCES.md) pour la configuration, les vérifications et les limites de déduplication.
 
+## Interface par plateforme
+
+Le sélecteur de console adapte la bibliothèque, la recherche, les recommandations,
+le Top, les téléchargements et les paramètres. Le Top Switch est une sélection
+éditoriale distincte des scores indicatifs du Top PS2.
+
+La recherche Switch est disponible dans l’interface graphique : NSP/XCI directs
+sur Internet Archive et fiches externes pour les archives explicitement identifiées.
+Les mises à jour et DLC identifiables ne sont pas proposés comme jeux de base.
+Les empreintes IA servent au contrôle du transfert, sans identification Redump.
+Les commandes CLI de recherche/téléchargement restent PS2 dans cette version.
+
+Téléchargements : bouton **Supprimer** ou clic droit → **Supprimer**. Un transfert
+actif est arrêté ; l’entrée est retirée de la liste et les fichiers sur disque sont conservés.
+
 ## Comportements importants
 
 - Aucun fichier existant non reconnu n'est écrasé. Les fragments `.part` ne sont pas des jeux installés.
@@ -60,7 +75,7 @@ La recherche interroge les sources activées en parallèle. MiNERVA ouvre une fi
 - Un CUE exige ses pistes sélectionnées. Les archives ZIP/7z ne sont pas extraites automatiquement.
 - La conversion vérifie le CHD et conserve **tous** les originaux. Pour un ISO, choisir explicitement CD ou DVD. Un CUE utilise CD.
 - La fermeture suspend le téléchargement actif ; sa reprise reste explicite. Une seule instance possède le moteur de transfert ; les autres peuvent consulter la file.
-- SRM est ouvert avec des instructions : effectuer Parse puis Save dans SRM. Cochwa ne prétend pas avoir ajouté un jeu à Steam et n'arrête jamais Steam.
+- Paramètres → Configurer mes consoles dans Steam : aperçu, installation sauvegardée des parseurs PS2/Switch, puis synchronisation via SRM. Les parseurs personnels sont préservés ; ceux qui couvrent les mêmes dossiers peuvent être désactivés explicitement dans l’assistant. Steam et SRM doivent être fermés manuellement avant la synchronisation.
 - Le datfile Redump reste configurable ; sa source historique utilise HTTP. Le mode hors ligne accepte un cache périmé avec un état explicite.
 
 ## Développement

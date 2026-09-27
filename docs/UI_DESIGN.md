@@ -1,15 +1,15 @@
 # Interface Cochwa — 27 septembre 2026
 
 Références : [charte graphique](../CHARTE_GRAPHIQUE.md) et [planche](../PlancheGraphique.png).
-La recherche et les catalogues restent PS2. La bibliothèque locale Switch déjà
-existante est conservée ; sa configuration est facultative et repliée par défaut.
+La PS2 et la Switch disposent désormais de recherches et catalogues distincts.
+Le sélecteur adapte les écrans, le Top, les téléchargements et les paramètres.
 
 ## Identité et composants
 
 - Palette centralisée dans `cochwa/gui_qt/theme.py`, avec les dix couleurs de la charte.
 - Geist Regular et SemiBold embarquées, licence SIL OFL dans `gui_qt/assets/OFL.txt`.
   Source des polices : https://github.com/vercel/geist-font (fichiers TTF, branche main).
-- C-portail vectoriel avec accent corail et oreille géométrique discrète. Icône
+- Premier logo « Portail » choisi par l’utilisateur : C arrondi et carré corail. Icône
   de fenêtre et pictogrammes natifs indépendants des polices emoji.
 - En-têtes, panneaux et états vides communs dans `gui_qt/widgets.py`.
 - Fonds sobres, focus clavier visible, statuts exprimés en texte, jaquettes
@@ -25,6 +25,9 @@ existante est conservée ; sa configuration est facultative et repliée par déf
   pagination explicite et résultats périmés ignorés au changement de console.
 - Téléchargements : sélection conservée à l'actualisation ; actions adaptées à
   l'état de la tâche, progression, états vides avec accès au catalogue.
+- Assistant Steam : aperçu, parseurs par console et manifestes générés, sauvegarde,
+  désactivation facultative des anciens parseurs chevauchants et commande SRM add.
+- Téléchargements supprimables par bouton ou menu contextuel (fichiers conservés).
 - Paramètres regroupés en panneaux défilants avec enregistrement toujours
   accessible, clé masquée, indication des modifications non enregistrées.
 - Support défilant, liens accompagnés de leur destination et d'une description.

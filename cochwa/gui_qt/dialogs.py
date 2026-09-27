@@ -37,6 +37,7 @@ class RemoteDetailsDialog(QDialog):
         super().__init__(parent or app)
         self.app = app
         self.game = game
+        self.console = app.console
         self.setWindowTitle(game.clean_title)
         self.resize(950, 560)
         layout = QVBoxLayout(self)
@@ -53,13 +54,17 @@ class RemoteDetailsDialog(QDialog):
         layout.addWidget(info)
 
         if game.external:
+            minerva = game.source == "minerva"
             note = QLabel(
-                "Ouvrir la fiche MiNERVA, choisir le torrent dans votre client, "
-                "puis placer les fichiers extraits dans le dossier PS2."
+                "Ouvrir la fiche MiNERVA, choisir le torrent dans votre client, puis placer les fichiers extraits dans le dossier PS2."
+                if minerva
+                else "Cette fiche propose une archive Switch. Ouvrez la source, extrayez le NSP/XCI dans votre dossier Switch, puis actualisez la bibliothèque. Le contenu de l’archive n’a pas été vérifié par Cochwa."
             )
             note.setWordWrap(True)
             layout.addWidget(note)
-            open_btn = QPushButton("Ouvrir la fiche MiNERVA")
+            open_btn = QPushButton(
+                "Ouvrir la fiche MiNERVA" if minerva else "Ouvrir la fiche Internet Archive"
+            )
             open_btn.setObjectName("primary")
             open_btn.clicked.connect(lambda: webbrowser.open(game.source_reference()["url"]))
             layout.addWidget(open_btn)
@@ -88,7 +93,11 @@ class RemoteDetailsDialog(QDialog):
 
         self.table = QTableWidget(len(game.files), 3)
         self.table.setHorizontalHeaderLabels(
-            ["Fichier / édition", "Taille", "Identification source"]
+            [
+                "Fichier / édition",
+                "Taille",
+                "Contenu" if game.platform == "switch" else "Identification source",
+            ]
         )
         self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
         self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
@@ -102,7 +111,17 @@ class RemoteDetailsDialog(QDialog):
         self.table.setWordWrap(False)
         for row, file in enumerate(game.files):
             for column, text in enumerate(
-                (file["name"], human_size(file["size"]), file.get("title") or "Non reconnu")
+                (
+                    file["name"],
+                    human_size(file["size"]),
+                    (
+                        {"game": "Jeu de base", "update": "Mise à jour", "dlc": "DLC"}.get(
+                            file.get("content_type"), "NSP/XCI"
+                        )
+                        if game.platform == "switch"
+                        else file.get("title") or "Non reconnu"
+                    ),
+                )
             ):
                 item = QTableWidgetItem(text)
                 item.setToolTip(text)
@@ -123,6 +142,10 @@ class RemoteDetailsDialog(QDialog):
         enqueue.setObjectName("primary")
         enqueue.clicked.connect(self.enqueue)
         controls.addWidget(enqueue)
+        if game.platform == "switch" and app.config.switch_dir is None:
+            setup = QPushButton("Configurer Switch")
+            setup.clicked.connect(lambda: (app.sidebar.setCurrentRow(5), self.reject()))
+            controls.addWidget(setup)
         select_all = QPushButton("Tout sélectionner")
         select_all.clicked.connect(self.table.selectAll)
         controls.addWidget(select_all)
@@ -142,7 +165,11 @@ class RemoteDetailsDialog(QDialog):
 
     def _update_status(self):
         files = self._selected_files()
-        self.enqueue_button.setEnabled(bool(files))
+        configured = self.game.platform != "switch" or self.app.config.switch_dir is not None
+        self.enqueue_button.setEnabled(bool(files) and configured)
+        self.enqueue_button.setToolTip(
+            "Configurez le dossier Switch dans Paramètres." if not configured else ""
+        )
         self.status.setText(
             f"{len(files)} fichier(s) · {human_size(sum(f['size'] for f in files))} · "
             "CUE : sélectionner aussi ses pistes BIN"
@@ -153,7 +180,11 @@ class RemoteDetailsDialog(QDialog):
             self.app.store.add(
                 self.game,
                 [f["name"] for f in self._selected_files()],
-                self.app.config.download_path,
+                (
+                    self.app.config.switch_dir
+                    if self.game.platform == "switch"
+                    else self.app.config.download_path
+                ),
             )
             self.app.manager.start()
             self.app.show_downloads()
@@ -169,6 +200,7 @@ class LocalDetailsDialog(QDialog):
         super().__init__(parent or app)
         self.app = app
         self.game = game
+        self.console = app.console
         self.setWindowTitle(game.title)
         self.resize(820, 420)
         layout = QVBoxLayout(self)
@@ -254,7 +286,7 @@ class LocalDetailsDialog(QDialog):
     def update_file_actions(self):
         row = self.paths.currentRow()
         suffix = self.game.paths[row].suffix.lower() if row >= 0 else ""
-        convertible = self.app.console.disc_based and suffix in {".iso", ".cue"}
+        convertible = self.console.disc_based and suffix in {".iso", ".cue"}
         self.convert_button.setEnabled(convertible)
         self.media.setEnabled(convertible)
         self.media.setCurrentIndex(0 if suffix == ".cue" else 1)
@@ -267,7 +299,7 @@ class LocalDetailsDialog(QDialog):
 
     def play(self):
         try:
-            process, log = launch(self.chosen(), self.app.config, console=self.app.console)
+            process, log = launch(self.chosen(), self.app.config, console=self.console)
             self.status.setText(f"Lancement demandé ; journal : {log}")
 
             def check():
@@ -286,6 +318,11 @@ class LocalDetailsDialog(QDialog):
             path = self.chosen()
         except ValueError as exc:
             self.status.setText(str(exc))
+            return
+        if not self.console.disc_based and not (self.game.directory / ".romget.json").exists():
+            self.status.setText(
+                "Aucune empreinte source enregistrée pour ce jeu Switch. Redump ne s’applique pas à cette plateforme."
+            )
             return
         self.status.setText("Vérification du fichier, cela peut prendre plusieurs minutes…")
 

@@ -61,6 +61,7 @@ class Config:
         default_factory=lambda: {
             "ia_redump": ProviderConfig("ia_redump"),
             "minerva": ProviderConfig("minerva"),
+            "ia_switch": ProviderConfig("ia_switch"),
         }
     )
     launcher: Path = field(default_factory=lambda: Path.home() / "Games/scripts/pcsx2/launch.sh")

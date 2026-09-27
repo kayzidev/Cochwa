@@ -107,3 +107,42 @@ class JobTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_remove_active_stops_worker_without_deleting_files(tmp_path):
+    entered = threading.Event()
+    store = JobStore(tmp_path / "state")
+    game = IAGame("fixture", "Game", "Game", [{"name": "disc.iso", "size": 6}], "disc.iso", 6)
+    key = store.add(game, ["disc.iso"], tmp_path)
+    marker = tmp_path / "keep.iso"
+    marker.write_bytes(b"keep")
+
+    def slow(*args, **kwargs):
+        entered.set()
+        kwargs["cancel"].wait(2)
+        raise DownloadCancelled()
+
+    manager = DownloadManager(store)
+    with patch("cochwa.services.jobs.download", side_effect=slow):
+        manager.start()
+        assert entered.wait(2)
+        manager.remove(key)
+        deadline = time.monotonic() + 3
+        while store.list() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        manager.close()
+        manager._thread.join(2)
+    assert store.list() == []
+    assert marker.read_bytes() == b"keep"
+
+
+def test_removal_marker_survives_late_progress(tmp_path):
+    store = JobStore(tmp_path / "state")
+    game = IAGame("fixture", "Game", "Game", [{"name": "disc.iso", "size": 6}], "disc.iso", 6)
+    key = store.add(game, ["disc.iso"], tmp_path)
+    store.update(key, status="running")
+    store.remove(key)
+    store.update(key, status="completed", progress=6)
+    assert store.list()[0]["status"] == "removing"
+    store.finish_removal(key)
+    assert store.list() == []

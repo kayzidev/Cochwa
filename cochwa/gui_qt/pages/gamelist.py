@@ -23,6 +23,8 @@ class GameListPage(QWidget):
             label,
             "DÉCOUVRIR · PLAYSTATION 2",
         )
+        self.header = header
+        self.platform = app.console.id
         self.heading = header.title
         layout.addWidget(header)
         bar = QHBoxLayout()
@@ -51,17 +53,29 @@ class GameListPage(QWidget):
     def activate(self):
         # Reconstruit à chaque affichage : badges « Installé » et filtre genre
         # à jour ; les jaquettes sont servies par le cache mémoire/disque.
+        platform = self.app.console.id
+        if platform != self.platform and self.genre:
+            self.genre.blockSignals(True)
+            self.genre.clear()
+            self.genre.addItems([""] + genres(platform))
+            self.genre.blockSignals(False)
+        self.platform = platform
+        self.header.eyebrow.setText(f"DÉCOUVRIR · {self.app.console.name.upper()}")
+        if self.genre:
+            self.heading.setText(f"Top {self.app.console.short_name}")
+            self.header.description.setText(
+                "Sélection éditoriale Cochwa · disponibilité selon les sources"
+                if platform == "switch"
+                else "Les mieux notés · scores Metacritic indicatifs"
+            )
+        else:
+            self.header.description.setText(
+                f"Recommandés {self.app.console.short_name} · {len(recommended_pool(platform))} jeux en rotation"
+            )
         self.render()
 
     def render(self):
         self.grid.clear()
-        if self.app.console.id != "ps2":
-            self.count.setText("Catalogue PS2")
-            self.grid.set_empty(
-                "Listes de découverte PS2 — le catalogue Switch arrivera avec sa "
-                "source de recherche. La bibliothèque Switch est dans l'onglet Bibliothèque."
-            )
-            return
         installed = set()
         for title in self.app.installed_titles():
             installed.add(title.casefold())
@@ -74,6 +88,8 @@ class GameListPage(QWidget):
             base = title.split("(")[0].strip().casefold()
             is_installed = title.casefold() in installed or base in installed
             badges = []
+            if entry.get("top_rank"):
+                badges.append((f"N° {entry['top_rank']}", theme.MUTED))
             if type(entry.get("score")) is int:
                 badges.append((f"★ {entry['score']}", theme.score_color(entry["score"])))
             if is_installed:
@@ -104,7 +120,7 @@ class RecommendedPage(GameListPage):
 
     def entries(self):
         # Rotation quotidienne : la sélection change si le jour a changé.
-        return recommended_entries()
+        return recommended_entries(platform=self.app.console.id)
 
 
 class TopPage(GameListPage):
@@ -118,4 +134,4 @@ class TopPage(GameListPage):
         self._entries = entries
 
     def entries(self):
-        return self._entries
+        return top_entries(self.app.console.id)

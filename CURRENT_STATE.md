@@ -2,6 +2,26 @@
 
 Date : 2026-09-27 (Europe/Paris), mise à jour soir.
 
+## Session 12 (2026-09-27) — plateformes, sources Switch et préréglages Steam
+
+- Premier logo « Portail » de la planche retenu (SVG arrondi, sans oreille).
+- Top PS2 / Top Switch dynamique, catalogues distincts, filtres de recherche
+  mémorisés par plateforme ; vues bibliothèque, transferts et paramètres adaptées.
+- Recherche Switch IA vérifiée sur métadonnées réelles ; fichiers NSP/XCI directs,
+  archives identifiées en ouverture externe, mises à jour/DLC distingués.
+- Implémentation PS2 conservée dans `providers/ia_ps2_search.py` ; orchestration
+  commune `SearchService`, backend Switch distinct, Redump limité à la PS2.
+- Suppression de tâche via bouton et menu contextuel ; arrêt coordonné du worker,
+  fichiers conservés et protection contre les écritures tardives de progression.
+- Assistant SRM dans Paramètres : aperçu, configurations PS2/Switch et manifestes
+  générés, fusion idempotente, sauvegarde, conflits détectés, désactivation
+  facultative des anciens parseurs couvrant les mêmes dossiers, commande `add`.
+- Les configurations SRM/Steam réelles n’ont pas été modifiées ; installation
+  testée en dossiers temporaires et aperçu des bibliothèques réelles en lecture seule.
+- Validation : 114 tests + 10 sous-tests réussis, 5 tests réseau optionnels ignorés ;
+  lint/format et build vérifiés. Sonde IA Switch réelle limitée aux métadonnées.
+- Captures : `docs/validation/platforms/`. Détails : `docs/SOURCES.md` et README.
+
 ## Session 11 (2026-09-27) — identité Cochwa et refonte UI/UX
 
 - Références utilisateur : `charteGraphique.md` et `PlancheGraphique.png`.

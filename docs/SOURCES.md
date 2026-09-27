@@ -1,4 +1,4 @@
-# Sources PS2 et qualité de recherche — 27 septembre 2026
+# Sources PS2 / Switch et qualité de recherche — 27 septembre 2026
 
 ## Sources intégrées
 
@@ -101,3 +101,37 @@ archive non reconnue reste un contenu à vérifier, même si son nom correspond.
 
 Les collections IA configurées via `providers.ia_redump.ia_collections` restent
 un bonus de classement, pas des sources indépendantes ni une preuve de conformité.
+
+
+## Switch — intégration du 27 septembre 2026
+
+- Recherche graphique via `ia_switch` (activé par défaut), indépendante de
+  `ia_redump` et de MiNERVA. Détection par extensions NSP/XCI des fichiers réels.
+- Les archives nommées `.nsp.zip/.7z/.rar` ou `.xci.zip/.7z/.rar` donnent une
+  fiche source externe, sans sélection automatique de leur contenu. Les archives
+  génériques, fichiers privés, exécutables et NCA isolés ne sont pas retenus.
+- Mises à jour et DLC repérables par tags/TitleID exclus des recherches de jeux
+  de base ; tailles et empreintes SHA-1/MD5 issues des métadonnées IA. Aucune
+  identification Switch via le datfile Redump PS2.
+- Sonde réelle : requête `mario`, 30 items IA signalés, plusieurs NSP/XCI directs
+  et une fiche d’archive XCI repérés. Aucun binaire de jeu téléchargé.
+- Le répertoire [MiNERVA No-Intro](https://minerva-archive.org/browse/No-Intro/)
+  consulté ne listait pas Switch ; aucune URL de catalogue Switch n’a été inventée.
+- Référence API : [Internet Archive advanced search](https://archive.org/advancedsearch.php).
+  Les résultats restent soumis à la disponibilité et aux restrictions de la source.
+
+## Steam ROM Manager — format vérifié
+
+L’assistant Cochwa s’appuie sur le [parseur Manual officiel](https://github.com/SteamGridDB/steam-rom-manager/blob/master/src/lib/parsers/manual.parser.ts)
+et son [format de manifeste](https://github.com/SteamGridDB/steam-rom-manager/blob/master/src/lang/en-US/markdown/manual-parser-input.md).
+Le terme Manual désigne le format SRM ; l’utilisateur ne rédige pas ces fichiers.
+Cochwa génère automatiquement les entrées (titre, lanceur, arguments et catégorie),
+avec préférence CHD en PS2 et conservation des titres d’éditions/mods.
+
+L’installation fusionne les préréglages Cochwa avec les configurations personnelles,
+sauvegarde le JSON précédent et refuse un fichier modifié depuis l’aperçu.
+Les manifestes sont versionnés pour que la sauvegarde reste exploitable.
+La [commande CLI `add`](https://github.com/SteamGridDB/steam-rom-manager/wiki/Command-Line-Interface)
+synchronise tous les parseurs SRM activés ; Cochwa l’indique avant exécution et
+exige que Steam soit fermé. Aucune commande de suppression Steam n’est utilisée.
+La synchronisation Steam réelle n’a pas été déclenchée lors des tests de développement.

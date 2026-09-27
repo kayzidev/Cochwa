@@ -1,10 +1,4 @@
-"""Registre des consoles — base de la logique multiconsole.
-
-PS2 : recherche (IA + MiNERVA), bibliothèque et lancement.
-Switch : bibliothèque locale et lancement (Ryubing) ; la recherche Switch
-attend son provider — ne pas en ajouter un sans identification des dumps
-(pas d'équivalent Redump branché pour l'instant).
-"""
+"""Registre des consoles et capacités : PS2 et Nintendo Switch."""
 
 from __future__ import annotations
 
@@ -21,6 +15,7 @@ class Console:
     launcher: str = ""  # script de lancement par défaut
     emulator: str = ""
     emulator_url: str = ""
+    short_name: str = ""
     disc_based: bool = False  # images CD/DVD : CUE/CHD, conversion, datfile
 
 
@@ -28,6 +23,7 @@ CONSOLES = (
     Console(
         "ps2",
         "PlayStation 2",
+        short_name="PS2",
         enabled=True,
         rom_extensions=(".iso", ".chd", ".cue", ".bin"),
         roms_dir="~/Games/roms/ps2",
@@ -39,6 +35,7 @@ CONSOLES = (
     Console(
         "switch",
         "Switch",
+        short_name="Switch",
         enabled=True,
         rom_extensions=(".nsp", ".xci", ".nca"),
         roms_dir="~/Games/roms/switch",

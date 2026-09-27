@@ -1,45 +1,24 @@
 """Composants communs : en-têtes, panneaux et symbole vectoriel Cochwa."""
 
 from PySide6.QtCore import QRectF, Qt
-from PySide6.QtGui import QColor, QIcon, QLinearGradient, QPainter, QPainterPath, QPixmap
+from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPixmap
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from cochwa.gui_qt import theme
 
 
 def brand_pixmap(size=48):
-    """C-portail, cœur corail et oreille discrète : lisible sans fichier bitmap."""
+    """Premier logo de la planche : portail C arrondi et carré corail."""
+    from pathlib import Path
+
+    from PySide6.QtSvg import QSvgRenderer
+
     pixmap = QPixmap(size * 2, size * 2)
     pixmap.setDevicePixelRatio(2)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.Antialiasing)
-    painter.scale(size / 64, size / 64)
-    painter.setPen(Qt.NoPen)
-    gradient = QLinearGradient(10, 5, 52, 60)
-    gradient.setColorAt(0, QColor("#B6A7FF"))
-    gradient.setColorAt(0.5, QColor(theme.ACCENT))
-    gradient.setColorAt(1, QColor("#9A62FF"))
-    painter.setBrush(gradient)
-    portal = QPainterPath()
-    portal.moveTo(52, 10)
-    portal.lineTo(31, 10)
-    portal.cubicTo(1, 10, 1, 56, 31, 56)
-    portal.lineTo(52, 56)
-    portal.lineTo(52, 43)
-    portal.lineTo(31, 43)
-    portal.cubicTo(18, 43, 18, 23, 31, 23)
-    portal.lineTo(52, 23)
-    portal.closeSubpath()
-    painter.drawPath(portal)
-    ear = QPainterPath()
-    ear.moveTo(15, 18)
-    ear.lineTo(18, 5)
-    ear.lineTo(29, 12)
-    ear.closeSubpath()
-    painter.drawPath(ear)
-    painter.setBrush(QColor(theme.SECONDARY))
-    painter.drawRoundedRect(QRectF(34, 28, 15, 12), 4, 4)
+    renderer = QSvgRenderer(str(Path(__file__).parent / "assets" / "logo.svg"))
+    renderer.render(painter, QRectF(0, 0, size, size))
     painter.end()
     return pixmap
 
@@ -55,6 +34,7 @@ class PageHeader(QWidget):
         layout.setContentsMargins(0, 0, 0, 8)
         layout.setSpacing(6)
         overline = QLabel(eyebrow)
+        self.eyebrow = overline
         overline.setObjectName("eyebrow")
         layout.addWidget(overline)
         self.title = QLabel(title)

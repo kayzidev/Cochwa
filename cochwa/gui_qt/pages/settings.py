@@ -44,9 +44,8 @@ class SettingsPage(QWidget):
         content.setSpacing(16)
         self.values = {}
 
-        panel, box = section(
-            "PlayStation 2", "Votre plateforme actuelle pour la recherche et les téléchargements."
-        )
+        panel, box = section("PlayStation 2", "Jeux, téléchargements et émulateur PlayStation 2.")
+        self.ps2_panel = panel
         self._form = self._make_form()
         box.addLayout(self._form)
         self._row(
@@ -73,13 +72,17 @@ class SettingsPage(QWidget):
         content.addWidget(panel)
 
         panel, box = section(
-            "Switch · bibliothèque locale",
-            "Configuration facultative. Le catalogue de recherche reste dédié à la PS2.",
+            "Nintendo Switch",
+            "Jeux NSP/XCI, recherche Internet Archive et lanceur Ryubing.",
         )
+        self.switch_panel = panel
         toggle = QPushButton("Afficher la configuration Switch")
         toggle.setCheckable(True)
         box.addWidget(toggle)
         advanced = QWidget()
+        advanced.setObjectName("formBody")
+        self.switch_settings = advanced
+        self.switch_toggle = toggle
         self._form = self._make_form()
         advanced.setLayout(self._form)
         self._row(
@@ -106,8 +109,12 @@ class SettingsPage(QWidget):
 
         panel, box = section(
             "Steam & diagnostic",
-            "Dans Steam ROM Manager : Parse → Preview → Save apps to Steam. Le redémarrage de Steam reste manuel.",
+            "Préparez les préréglages et synchronisez vos jeux depuis Cochwa. Steam reste à fermer et rouvrir manuellement.",
         )
+        setup = QPushButton("Configurer mes consoles dans Steam")
+        setup.setObjectName("primary")
+        setup.clicked.connect(self.setup_srm)
+        box.addWidget(setup)
         actions = QHBoxLayout()
         srm = QPushButton("Ouvrir Steam ROM Manager")
         srm.clicked.connect(self.open_srm)
@@ -130,6 +137,19 @@ class SettingsPage(QWidget):
         save.clicked.connect(self.save)
         footer.addWidget(save)
         layout.addLayout(footer)
+
+    def activate(self):
+        switch = self.app.console.id == "switch"
+        self.ps2_panel.setVisible(not switch)
+        self.switch_panel.setVisible(switch)
+        self.switch_toggle.setChecked(switch)
+
+    def setup_srm(self):
+        from cochwa.gui_qt.srm_dialog import SRMDialog
+
+        dialog = SRMDialog(self.app, self)
+        dialog.show()
+        return dialog
 
     def _make_form(self):
         form = QFormLayout()
@@ -193,7 +213,7 @@ class SettingsPage(QWidget):
 
     def save(self):
         root = Path(self.values["directory"].text()).expanduser()
-        if not root.is_dir():
+        if not root.is_dir() and (self.app.console.id == "ps2" or root != self.app.config.ps2_dir):
             self.app.error("Choisir un dossier existant ; vérifier son disque avant de continuer")
             return
         switch = self.values["switch_directory"].text().strip()

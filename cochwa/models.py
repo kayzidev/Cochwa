@@ -14,6 +14,7 @@ class RemoteFile(TypedDict):
     sha1: NotRequired[str]
     title: NotRequired[str]
     identification: NotRequired[str]
+    content_type: NotRequired[str]
     mtime_ns: NotRequired[int]
 
 
@@ -46,6 +47,14 @@ class IAGame:
 
     @property
     def label(self):
+        if self.platform == "switch":
+            if self.external:
+                return "Switch · archive externe · contenu non vérifié"
+            return (
+                "Switch · empreinte source disponible"
+                if self.identification == "source_checksum"
+                else "Switch · empreinte non vérifiée"
+            )
         if self.external:
             return "MiNERVA · Torrent externe · empreinte non vérifiée"
         return {

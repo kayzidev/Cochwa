@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 
 from PySide6.QtCore import QAbstractTableModel, QEasingCurve, QPropertyAnimation, Qt
@@ -10,6 +11,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMenu,
+    QMessageBox,
     QProgressBar,
     QPushButton,
     QTableView,
@@ -78,13 +81,12 @@ class DownloadsPage(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 16)
         layout.setSpacing(14)
-        layout.addWidget(
-            PageHeader(
-                "Vos téléchargements",
-                "Suivez vos transferts et reprenez-les quand vous le souhaitez.",
-                "VOTRE ACTIVITÉ",
-            )
+        self.header = PageHeader(
+            "Vos téléchargements",
+            "Suivez vos transferts et reprenez-les quand vous le souhaitez.",
+            "VOTRE ACTIVITÉ",
         )
+        layout.addWidget(self.header)
         self.summary = QLabel("Aucun transfert en cours")
         self.summary.setObjectName("muted")
         layout.addWidget(self.summary)
@@ -92,6 +94,8 @@ class DownloadsPage(QWidget):
         self.model = DownloadsModel(self)
         self.table = QTableView()
         self.table.setModel(self.model)
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(self.context_menu)
         self.table.setShowGrid(False)
         self.table.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
         self.table.setWordWrap(False)
@@ -124,12 +128,13 @@ class DownloadsPage(QWidget):
             ("Pause", lambda key: app.manager.pause(key)),
             ("Reprendre", self.resume),
             ("Annuler", lambda key: app.manager.pause(key, True)),
+            ("Supprimer", self.remove),
         ]:
             button = QPushButton(label)
             button.clicked.connect(lambda checked=False, cb=callback: self.act(cb))
             self.actions[label] = button
             button.setEnabled(False)
-            if label == "Annuler":
+            if label in {"Annuler", "Supprimer"}:
                 button.setObjectName("danger")
             buttons.addWidget(button)
         buttons.addStretch(1)
@@ -151,6 +156,29 @@ class DownloadsPage(QWidget):
             callback(key)
             self.refresh()
 
+    def context_menu(self, position):
+        index = self.table.indexAt(position)
+        if not index.isValid():
+            return
+        self.table.selectRow(index.row())
+        menu = QMenu("Options", self)
+        menu.addSection("Options du téléchargement")
+        for label, button in self.actions.items():
+            action = menu.addAction(label, button.click)
+            action.setEnabled(button.isEnabled())
+        menu.exec(self.table.viewport().mapToGlobal(position))
+
+    def remove(self, key):
+        answer = QMessageBox.question(
+            self,
+            "Supprimer le téléchargement",
+            "Retirer ce téléchargement de la liste ?\nUn transfert actif sera arrêté. Les fichiers déjà présents sur disque seront conservés.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer == QMessageBox.Yes:
+            self.app.manager.remove(key)
+
     def resume(self, key):
         self.app.store.resume(key)
         self.app.manager.start()
@@ -168,6 +196,7 @@ class DownloadsPage(QWidget):
         self.actions["Pause"].setEnabled(status in {"queued", "running"})
         self.actions["Reprendre"].setEnabled(status in {"paused", "failed", "cancelled"})
         self.actions["Annuler"].setEnabled(status in {"queued", "running", "paused"})
+        self.actions["Supprimer"].setEnabled(row is not None and status != "removing")
         self.progress.setVisible(row is not None)
         self._set_progress(round(100 * row["progress"] / max(1, row["total"])) if row else 0)
 
@@ -188,10 +217,14 @@ class DownloadsPage(QWidget):
         self._anim.start()
 
     def refresh(self):
+        self.header.eyebrow.setText(f"VOTRE ACTIVITÉ · {self.app.console.name.upper()}")
         selected_key = self.selected_key()
         now = time.monotonic()
         rows = []
         for row in self.app.store.list():
+            payload = json.loads(row.get("payload", "{}"))
+            if payload.get("platform", "ps2") != self.app.console.id:
+                continue
             key = row["id"]
             # Vitesse moyenne sur une fenêtre glissante : moins de jitter
             # qu'un débit instantané, ETA plus stable.

@@ -39,7 +39,7 @@ class JobStore:
             db.close()
 
     def add(self, game, names, root):
-        if game.external or game.source != "ia_redump":
+        if game.external or game.source not in {"ia_redump", "ia_switch"}:
             raise ValueError("Cette source utilise un téléchargement externe ; ouvrir sa fiche")
         if not Path(root).is_dir():
             raise FileNotFoundError(
@@ -69,6 +69,7 @@ class JobStore:
         destination = Path(root) / (sanitize_dirname(title) + " [" + key[:8] + "]")
         payload = {
             "identifier": game.identifier,
+            "platform": game.platform,
             "title": title,
             "files": selected,
             "root": str(root),
@@ -102,9 +103,29 @@ class JobStore:
         fields["updated"] = time.time()
         with self.connect() as db:
             db.execute(
-                "UPDATE jobs SET " + ",".join(f"{k}=?" for k in fields) + " WHERE id=?",
+                "UPDATE jobs SET "
+                + ",".join(f"{k}=?" for k in fields)
+                + " WHERE id=? AND status != 'removing'",
                 (*fields.values(), job_id),
             )
+
+    def remove(self, job_id):
+        """Retire la tâche ; laisse un marqueur pour arrêter un worker actif."""
+        with self.connect() as db:
+            db.execute(
+                "UPDATE jobs SET status='removing',updated=? WHERE id=? AND status='running'",
+                (time.time(), job_id),
+            )
+            db.execute("DELETE FROM jobs WHERE id=? AND status!='removing'", (job_id,))
+
+    def removal_requested(self, job_id):
+        with self.connect() as db:
+            row = db.execute("SELECT status FROM jobs WHERE id=?", (job_id,)).fetchone()
+            return row is None or row["status"] == "removing"
+
+    def finish_removal(self, job_id):
+        with self.connect() as db:
+            db.execute("DELETE FROM jobs WHERE id=? AND status='removing'", (job_id,))
 
     def resume(self, job_id):
         with self.connect() as db:
@@ -144,9 +165,16 @@ class DownloadManager:
             else:
                 with self.store.connect() as db:
                     db.execute(
-                        "UPDATE jobs SET status=?,updated=? WHERE id=? AND status='queued'",
-                        (state, time.time(), job_id),
+                        "UPDATE jobs SET status=?,updated=? WHERE id=? AND (status='queued' OR (? AND status='paused'))",
+                        (state, time.time(), job_id, cancel),
                     )
+
+    def remove(self, job_id):
+        with self._guard:
+            self.store.remove(job_id)
+            if self.active == job_id:
+                self.cancel_event.set()
+        self.notify("jobs", job_id)
 
     def close(self):
         self.stop_event.set()
@@ -159,6 +187,7 @@ class DownloadManager:
                     db.execute(
                         "UPDATE jobs SET status='paused',error='Interruption précédente' WHERE status='running'"
                     )
+                    db.execute("DELETE FROM jobs WHERE status='removing'")
                 while not self.stop_event.is_set():
                     queued = next((r for r in self.store.list() if r["status"] == "queued"), None)
                     if queued is None:
@@ -188,6 +217,7 @@ class DownloadManager:
                     except Exception as exc:
                         self.store.update(queued["id"], status="failed", error=str(exc))
                     finally:
+                        self.store.finish_removal(queued["id"])
                         self.notify("jobs", queued["id"])
                         with self._guard:
                             self.active = None
@@ -213,6 +243,8 @@ class DownloadManager:
 
                 def progress(written, total):
                     nonlocal last
+                    if self.store.removal_requested(job["id"]):
+                        raise DownloadCancelled()
                     now = time.monotonic()
                     if now - last > 0.2 or written == total:
                         self.store.update(job["id"], progress=completed + written)
@@ -261,7 +293,7 @@ class DownloadManager:
                         }
                         # Identification Redump du contenu extrait : le hash de
                         # l'archive ne vaut rien, celui du fichier extrait si.
-                        if self.datfile:
+                        if self.datfile and payload.get("platform", "ps2") == "ps2":
                             digest = checksum(p, cancel=self.cancel_event)
                             entry["md5"] = digest
                             recognized = self.datfile().lookup_title_by_md5(digest)

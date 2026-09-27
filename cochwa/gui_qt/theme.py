@@ -27,6 +27,7 @@ ROW_TINTS = {
 }
 STATE_LABELS = {
     "queued": "En attente",
+    "removing": "Suppression en cours",
     "running": "En cours",
     "paused": "En pause",
     "cancelled": "Annulé",
@@ -70,7 +71,7 @@ QWidget#hero {{ border: 1px solid #443C6B; border-radius: 16px;
     background: qlineargradient(x1:0,y1:0,x2:1,y2:1,stop:0 #302951,stop:0.6 #201E35,stop:1 #292234); }}
 QWidget#hero QLabel {{ background: transparent; }}
 QWidget#section {{ background: {PANEL}; border: 1px solid #2C3040; border-radius: 12px; }}
-QWidget#section > QWidget {{ background: transparent; }}
+QWidget#formBody {{ background: transparent; }}
 QListWidget#sidebar {{ background: transparent; border: none; outline: 0; padding: 6px;
     font-size: 14px; }}
 QListWidget#sidebar::item {{ padding: 10px 10px; margin: 2px 2px; border-radius: 9px;
@@ -131,4 +132,5 @@ QFrame#toastBar {{ border-radius: 3px; }}
 QToolTip, QMenu {{ background: {CARD}; color: {TEXT}; border: 1px solid {BORDER}; padding: 6px; }}
 QMenu::item {{ padding: 9px 18px; border-radius: 5px; }}
 QMenu::item:selected {{ background: {ACCENT_DARK}; }}
+QMenu::item:disabled {{ color: #666B80; }}
 """

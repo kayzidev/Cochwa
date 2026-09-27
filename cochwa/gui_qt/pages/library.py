@@ -36,6 +36,8 @@ class LibraryPage(QWidget):
         self.app = app
         self.games = []
         self.generation = 0
+        self.platform = app.console.id
+        self.contexts = {}
         layout = QVBoxLayout(self)
         layout.setContentsMargins(28, 24, 28, 16)
         layout.setSpacing(14)
@@ -112,7 +114,18 @@ class LibraryPage(QWidget):
         self.generation += 1
         generation = self.generation
         console = self.app.console
+        if self.platform != console.id:
+            self.contexts[self.platform] = (self.query.text(), self.sort.currentIndex())
+            self.platform = console.id
+            query, sort = self.contexts.get(console.id, ("", 0))
+            self.query.blockSignals(True)
+            self.sort.blockSignals(True)
+            self.query.setText(query)
+            self.sort.setCurrentIndex(sort)
+            self.query.blockSignals(False)
+            self.sort.blockSignals(False)
         self.collection_title.setText(f"Votre collection {console.name}")
+        self.collection_stats.setText("Actualisation de cette plateforme…")
         # CHD = format disque (PS2) ; sans objet pour les ROMs cartouche.
         self.convert_button.setVisible(console.disc_based)
         root = self.app.roms_dir()

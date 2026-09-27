@@ -109,3 +109,18 @@ def extract_main_rom(filenames: list[str]) -> str | None:
     if archives:
         return archives[0]
     return None
+
+
+def switch_content_type(filename):
+    """Distingue les tags de contenu Switch sans assimiler une version à une MAJ."""
+    import re
+
+    name = Path(filename).stem
+    if re.search(r"\[(?:update|upd)(?:\]|\s)", name, re.I):
+        return "update"
+    if re.search(r"\[dlc(?:\]|\s)", name, re.I):
+        return "dlc"
+    title_id = re.search(r"\[([0-9a-f]{16})\]|^([0-9a-f]{16})$", name, re.I)
+    if title_id and int(title_id[1] or title_id[2], 16) & 0xFFF == 0x800:
+        return "update"
+    return "game"
