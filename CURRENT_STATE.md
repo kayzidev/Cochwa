@@ -2,6 +2,23 @@
 
 Date : 2026-09-27 (Europe/Paris), mise à jour soir.
 
+## Session 6 ter (2026-09-27) — git initialisé + POC PySide6
+
+- **D1 levé** (décision utilisateur) : commit initial sur `master`, branche
+  `poc-pyside6` pour le POC Qt.
+- **Étude PySide6** : GUI Tkinter ~2 050 lignes à réécrire, ~2 070 lignes
+  (services/api/models/config/games_data) réutilisées telles quelles — le GUI
+  est totalement isolé (seul « tkinter » hors gui/ = sonde doctor du CLI).
+- **POC livré** (`romget/gui_qt/`, lancer : `.venv/bin/python -m romget.gui_qt`) :
+  sidebar QSS + `QStackedWidget`, onglet Recommandés réel (20 cartes),
+  jaquettes via le service existant en `QThreadPool` (signaux thread-safe),
+  fondu GPU (`QGraphicsOpacityEffect`), hover (bordure accent + zoom 1.07),
+  cascade d'apparition, élision 2 lignes des titres. Mesure : 19/20 covers en
+  1,3 s (cache disque). Capture : `docs/validation/poc-pyside6.png`.
+- Piège corrigé : connecter le hub de signaux AVANT de lancer les workers
+  (cache disque → réponses en ms, signaux perdus sinon).
+- Décision en attente : go/no-go réécriture complète (étapes 1-3 de l'étude).
+
 ## Session 6 bis (2026-09-27) — correctifs UI + dossier de téléchargement
 
 - **Bug covers visibles seulement au survol** : l'animation squelette pulsant
