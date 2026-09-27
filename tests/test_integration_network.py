@@ -15,6 +15,7 @@ from pathlib import Path
 
 from romget.api.steamgriddb import _ia_cover_url, search_grids
 from romget.config import DEFAULT_CACHE_DIR, Config, ProviderConfig
+from romget.providers.minerva import MinervaProvider
 from romget.services.search import SearchService
 
 NETWORK = os.environ.get("ROMGET_NETWORK_TESTS") == "1"
@@ -38,6 +39,15 @@ class NetworkIntegrationTests(unittest.TestCase):
 
     def tearDown(self):
         self.tmp.cleanup()
+
+    def test_real_minerva_catalog_search(self):
+        result = MinervaProvider(self.config).search("final fantasy x", limit=5)
+        self.assertTrue(result.games)
+        for game in result.games:
+            self.assertTrue(game.external)
+            self.assertTrue(game.source_url.startswith("https://minerva-archive.org/rom?id="))
+            self.assertNotIn("x-2", game.clean_title.casefold())
+            self.assertEqual(game.files, [])
 
     def test_real_ia_search_returns_ps2_results(self):
         result = self.service.search("gran turismo 4", limit=5)

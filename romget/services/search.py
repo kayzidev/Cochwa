@@ -63,6 +63,10 @@ _OTHER_PLATFORM_TERMS = (
     "psvita",
     "vita",
     "ps3",
+    "ps4",
+    "ps5",
+    "playstation 4",
+    "playstation 5",
     "playstation 3",
     "psp",
     "ps1",
@@ -78,6 +82,7 @@ _OTHER_PLATFORM_TERMS = (
     "dreamcast",
     "switch",
     "pc game",
+    "pc",
     "windows",
     "dos",
     "n64",
@@ -288,8 +293,21 @@ class SearchService:
         if provider and not provider.enabled:
             raise ValueError("Provider IA désactivé dans la configuration")
         # Quoted tokens prevent the user text from becoming Solr operators.
-        terms = " AND ".join(literal(word) for word in query.split())
+        roman = dict(
+            zip(
+                map(str, range(2, 13)),
+                ("ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x", "xi", "xii"),
+            )
+        )
+        terms = " AND ".join(
+            f"({literal(word)} OR {literal(roman[word])})" if word in roman else literal(word)
+            for word in tokens(query)
+        )
         serial = bool(re.fullmatch(r"[A-Za-z]{4}[- _]?\d{5}", query))
+        if serial:
+            terms = " AND ".join(literal(word) for word in query.split())
+        if not terms:
+            return SearchResult(page=page)
         fields = f"title:({terms}) OR identifier:({terms}) OR subject:({terms})"
         if serial:
             fields += f" OR description:({terms})"
@@ -376,7 +394,7 @@ class SearchService:
                 # Le titre du fichier prime pour les régions explicites : un pack
                 # « Europe + USA » ne doit pas faire passer un fichier USA en Europe.
                 filter_text = file_title
-                if not re.search(r"\b(europe|usa|japan|pal|eur|jpn)\b", file_title, re.I):
+                if generic:
                     filter_text += " " + game.clean_title
                 if matches_filters(filter_text, region, language):
                     candidates.append(file)

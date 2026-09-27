@@ -4,7 +4,6 @@ import re
 import unicodedata
 from collections import Counter
 from dataclasses import replace
-from pathlib import PurePosixPath
 
 _ROMAN = dict(
     zip(
@@ -15,7 +14,8 @@ _ROMAN = dict(
 _NOISE = re.compile(r"\b(?:sony\s+)?(?:playstation\s*2|ps2|redump)\b", re.I)
 _ASSETS = re.compile(
     r"\b(?:cheats?|trainers?|walkthrough|soundtrack|trailers?|manuals?|"
-    r"boxart|covers?|textures?|savegame|save\s+data|bios|patch(?:es)?|action replay|gameshark|codebreaker)\b",
+    r"boxart|covers?|textures?|savegame|save\s+data|bios|patch(?:es)?|action replay|gameshark|codebreaker|"
+    r"press (?:kit|disc|materials|information)|demo(?: disc)?|preview|prototype|beta|taikenban)\b",
     re.I,
 )
 
@@ -107,7 +107,7 @@ def duplicate_key(game):
         tuple(
             sorted(
                 (
-                    normalized(PurePosixPath(f["name"]).name),
+                    f["name"].casefold(),
                     f["size"],
                     f.get("md5", "").lower(),
                     f.get("sha1", "").lower(),
