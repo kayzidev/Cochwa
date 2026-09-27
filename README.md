@@ -1,10 +1,14 @@
-# romget
+# Cochwa
 
-Bibliothèque PS2 pour Linux : recherche multi-sources Internet Archive et MiNERVA, sélection explicite des éditions et disques, téléchargements vérifiés et reprenables, lancement PCSX2, jaquettes et ouverture de Steam ROM Manager.
+Bibliothèque de ROMs pour Linux — actuellement PS2 : recherche multi-sources Internet Archive et MiNERVA, sélection explicite des éditions et disques, téléchargements vérifiés et reprenables, lancement PCSX2, jaquettes et ouverture de Steam ROM Manager. L'interface est prête pour le multiconsole (sélecteur en sidebar) ; la Switch est la prochaine console prévue.
+
+## Contenu hébergé : aucun
+
+Cochwa **n'héberge aucun lien ni aucun contenu**. Le logiciel interroge des catalogues publics (Internet Archive, MiNERVA) et renvoie vers leurs pages ; les téléchargements s'effectuent directement entre l'utilisateur et ces services tiers. Cochwa ne contient aucune ROM, aucun lien vers des ROMs et aucune clé de contournement.
 
 ## Démarrer sur cette machine
 
-Les wrappers existants `romget` et `romget-gui` restent compatibles. Depuis le projet :
+Les wrappers existants `romget` et `romget-gui` restent compatibles (alias des entry points `cochwa` / `cochwa-gui`). Depuis le projet :
 
 ```bash
 ./install.sh            # crée .venv et installe le paquet (GUI PySide6 inclus)
@@ -16,36 +20,36 @@ Sur une nouvelle installation : Python ≥ 3.11 avec venv/pip, puis `./install.s
 
 ## Configuration
 
-Le fichier existant `~/.config/romget/config.toml` est lu sans migration destructive. Pour une installation neuve, les dossiers par défaut sont `~/Games/roms/ps2`, `$XDG_CACHE_HOME/romget` et `$XDG_STATE_HOME/romget` (ou leurs valeurs usuelles). Le dossier ROMs doit exister avant un téléchargement. La GUI permet de choisir le dossier, le lanceur PCSX2 et une clé SteamGridDB puis de les enregistrer. La clé reste locale ; aucun secret par défaut.
+Le fichier existant `~/.config/romget/config.toml` est lu sans migration destructive (repli automatique sur l'ancien dossier XDG `romget` s'il existe ; les nouvelles installations utilisent `~/.config/cochwa/`). Pour une installation neuve, les dossiers par défaut sont `~/Games/roms/ps2`, `$XDG_CACHE_HOME/cochwa` et `$XDG_STATE_HOME/cochwa` (ou leurs valeurs usuelles). Le dossier ROMs doit exister avant un téléchargement. La GUI permet de choisir le dossier, le lanceur PCSX2 et une clé SteamGridDB puis de les enregistrer. La clé reste locale ; aucun secret par défaut.
 
-Un fichier alternatif s'utilise avec `romget --config /chemin/config.toml …` ou `romget-gui --config /chemin/config.toml`.
+Un fichier alternatif s'utilise avec `cochwa --config /chemin/config.toml …` ou `cochwa-gui --config /chemin/config.toml`.
 
 ## CLI
 
 ```bash
-romget search 'gran turismo 4' --region Europe --language Fr
-romget search 'final fantasy x' --source minerva
-romget search 'god of war 2' --source ia_redump
-romget search 'gran turismo 4' --page 2 --limit 20
-romget inspect IDENTIFIANT_IA
-romget download IDENTIFIANT_IA --file 'Nom exact.iso' --dry-run
-romget download IDENTIFIANT_IA --file 'Nom exact.iso'
-romget download IDENTIFIANT_IA --file 'Disque.cue' --file 'Piste.bin' --enqueue
-romget jobs list
-romget jobs run
-romget jobs resume ID_TACHE
-romget list --query 'Gran Turismo'
-romget verify '/chemin/jeu.iso'
-romget verify '/chemin/dossier-avec-manifeste'
-romget convert '/chemin/jeu.iso' --media dvd
-romget play '/chemin/jeu.chd'
-romget add-steam
-romget --json doctor
+cochwa search 'gran turismo 4' --region Europe --language Fr
+cochwa search 'final fantasy x' --source minerva
+cochwa search 'god of war 2' --source ia_redump
+cochwa search 'gran turismo 4' --page 2 --limit 20
+cochwa inspect IDENTIFIANT_IA
+cochwa download IDENTIFIANT_IA --file 'Nom exact.iso' --dry-run
+cochwa download IDENTIFIANT_IA --file 'Nom exact.iso'
+cochwa download IDENTIFIANT_IA --file 'Disque.cue' --file 'Piste.bin' --enqueue
+cochwa jobs list
+cochwa jobs run
+cochwa jobs resume ID_TACHE
+cochwa list --query 'Gran Turismo'
+cochwa verify '/chemin/jeu.iso'
+cochwa verify '/chemin/dossier-avec-manifeste'
+cochwa convert '/chemin/jeu.iso' --media dvd
+cochwa play '/chemin/jeu.chd'
+cochwa add-steam
+cochwa --json doctor
 ```
 
 `--all` sélectionne explicitement tous les fichiers d'un item, y compris ses différentes éditions. `--chd --media cd|dvd` permet la conversion après un téléchargement CLI. `--enqueue` enregistre seulement la tâche ; la GUI ou `jobs run` l'exécute. `--json`, `--config` et `--verbose` précèdent la commande. Codes : 0 succès, 1 échec d'opération, 2 arguments/configuration invalides, 130 interruption.
 
-La recherche interroge les sources activées en parallèle. MiNERVA ouvre une fiche torrent à utiliser dans un client externe ; la file de téléchargement romget reste réservée à Internet Archive. `--limit` s’applique par source. Voir [les sources et filtres](docs/SOURCES.md) pour la configuration, les vérifications et les limites de déduplication.
+La recherche interroge les sources activées en parallèle. MiNERVA ouvre une fiche torrent à utiliser dans un client externe ; la file de téléchargement Cochwa reste réservée à Internet Archive. `--limit` s’applique par source. Voir [les sources et filtres](docs/SOURCES.md) pour la configuration, les vérifications et les limites de déduplication.
 
 ## Comportements importants
 
@@ -56,33 +60,34 @@ La recherche interroge les sources activées en parallèle. MiNERVA ouvre une fi
 - Un CUE exige ses pistes sélectionnées. Les archives ZIP/7z ne sont pas extraites automatiquement.
 - La conversion vérifie le CHD et conserve **tous** les originaux. Pour un ISO, choisir explicitement CD ou DVD. Un CUE utilise CD.
 - La fermeture suspend le téléchargement actif ; sa reprise reste explicite. Une seule instance possède le moteur de transfert ; les autres peuvent consulter la file.
-- SRM est ouvert avec des instructions : effectuer Parse puis Save dans SRM. romget ne prétend pas avoir ajouté un jeu à Steam et n'arrête jamais Steam.
+- SRM est ouvert avec des instructions : effectuer Parse puis Save dans SRM. Cochwa ne prétend pas avoir ajouté un jeu à Steam et n'arrête jamais Steam.
 - Le datfile Redump reste configurable ; sa source historique utilise HTTP. Le mode hors ligne accepte un cache périmé avec un état explicite.
 
 ## Développement
 
 ```bash
 python3 -m pip install -e '.[dev]'   # dans un environnement virtuel
-ruff check romget tests tools
-ruff format --check romget tests tools
+ruff check cochwa tests tools
+ruff format --check cochwa tests tools
 python3 -m unittest discover -s tests -v
-python3 -m unittest discover -s tests/gui -v  # nécessite un affichage Tk
+QT_QPA_PLATFORM=offscreen python3 -m pytest tests/gui -v  # sans affichage
 python3 -m build
 ```
 
-La CI exécute les tests sur Python 3.11/3.14, les tests GUI sous Xvfb, le lint et la construction. Elle est configurée mais ne tourne à distance qu'après publication dans un dépôt GitHub.
+La CI exécute les tests sur Python 3.11/3.14, les tests GUI Qt en mode offscreen, le lint et la construction.
 
 ## Organisation
 
 ```text
-romget/
+cochwa/
   models.py             # modèles sérialisables
-  config.py             # TOML, validation, chemins XDG
+  config.py             # TOML, validation, chemins XDG (repli romget)
+  consoles.py           # registre des consoles (base multiconsole)
   infrastructure/       # HTTP, écritures atomiques, verrous, chemins
   services/             # recherche, transfert, conversion, file, bibliothèque/index
   api/                  # Redump, SteamGridDB, façade historique IA
   providers/            # contrat de source et adaptateur de compatibilité
-  gui/                  # écrans, dialogues, paramètres, événements et widgets
+  gui_qt/               # PySide6 : sidebar, pages, dialogues, workers, thème
   cli.py                # commandes du même cœur applicatif
 tests/                  # régressions métier, CLI et GUI
 .github/workflows/      # validation automatique

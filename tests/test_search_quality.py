@@ -3,12 +3,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from romget.config import Config, ProviderConfig
-from romget.models import IAGame, SearchResult
-from romget.providers.minerva import CatalogParser, MinervaProvider
-from romget.services.jobs import JobStore
-from romget.services.relevance import dedupe, is_unrequested_asset, relevant
-from romget.services.search import SearchService, _matches_other_platform
+from cochwa.config import Config, ProviderConfig
+from cochwa.models import IAGame, SearchResult
+from cochwa.providers.minerva import CatalogParser, MinervaProvider
+from cochwa.services.jobs import JobStore
+from cochwa.services.relevance import dedupe, is_unrequested_asset, relevant
+from cochwa.services.search import SearchService, _matches_other_platform
 
 
 def game(identifier, title, filename=None, md5="", size=1000):
@@ -88,7 +88,7 @@ class QualityTests(unittest.TestCase):
         with (
             patch.object(service, "_cached", return_value=data),
             patch.object(service, "item", return_value=pack),
-            patch("romget.services.search.get_datfile", return_value=index),
+            patch("cochwa.services.search.get_datfile", return_value=index),
         ):
             result = service.search("gran turismo 4", region="Europe", language="Fr")
             empty = service.search("god of war")
@@ -155,7 +155,7 @@ class MinervaTests(unittest.TestCase):
             )
             provider = MinervaProvider(config)
             with patch(
-                "romget.providers.minerva.fetch_catalog",
+                "cochwa.providers.minerva.fetch_catalog",
                 return_value={"1": "Game (Europe) (En,Fr).zip", "2": "Game (USA).zip"},
             ) as fetch:
                 first = provider.search("Game", limit=1)

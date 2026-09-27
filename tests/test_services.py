@@ -4,12 +4,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from romget.api.redump import RedumpDatfile
-from romget.config import Config
-from romget.models import IAGame
-from romget.services.jobs import JobStore
-from romget.services.library import scan
-from romget.services.search import SearchService, _matches_other_platform, literal
+from cochwa.api.redump import RedumpDatfile
+from cochwa.config import Config
+from cochwa.models import IAGame
+from cochwa.services.jobs import JobStore
+from cochwa.services.library import scan
+from cochwa.services.search import SearchService, _matches_other_platform, literal
 
 
 class ServicesTests(unittest.TestCase):

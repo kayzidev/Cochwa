@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock
 
-from romget.infrastructure.storage import write_json
-from romget.services.index import LibraryIndex
-from romget.services.library import scan
+from cochwa.infrastructure.storage import write_json
+from cochwa.services.index import LibraryIndex
+from cochwa.services.library import scan
 
 
 class IndexTests(unittest.TestCase):
@@ -50,7 +50,7 @@ class IndexTests(unittest.TestCase):
         directory = self.root / "A"
         directory.mkdir()
         (directory / "disc.iso").write_bytes(b"complete first disc")
-        write_json(directory / ".romget.pending.json", {"job_id": "fixture"})
+        write_json(directory / ".cochwa.pending.json", {"job_id": "fixture"})
         self.assertEqual(scan(self.root), [])
 
     def test_nested_managed_files_stay_one_game(self):

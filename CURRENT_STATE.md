@@ -1,6 +1,25 @@
-# État de reprise — romget
+# État de reprise — Cochwa (ex-romget)
 
 Date : 2026-09-27 (Europe/Paris), mise à jour soir.
+
+## Session 9 (2026-09-27) — renommage Cochwa + base multiconsole
+
+- **Projet renommé Cochwa** : paquet `romget/` → `cochwa/` (imports, pyproject,
+  entry points `cochwa`/`cochwa-gui` + alias `romget*` conservés pour les
+  wrappers), dépôt GitHub renommé `kayzidev/Cochwa`. Chemins XDG : nouvelles
+  installs sous `~/.config/cochwa` etc., **repli automatique** sur les anciens
+  dossiers `romget` s'ils existent (`config._xdg_dir`). Le manifeste
+  `.romget.json` dans les dossiers de jeux est **conservé tel quel** (format
+  disque stable).
+- **Mention légale** : « Cochwa n'héberge aucun contenu » — README (section
+  dédiée) + page Paramètres du GUI.
+- **Base multiconsole** : `cochwa/consoles.py` (registre `Console(id, name,
+  enabled)`, PS2 active, Switch en emplacement réservé) ; sidebar Qt =
+  placeholder logo « COCHWA » (96 px, bordure en pointillés) + sélecteur de
+  console (`QComboBox`, Switch grisée « (bientôt) ») + navigation.
+  `MainWindow.console` + `select_console()` = point d'entrée ; **aucune
+  logique Switch** ajoutée (consigne). Test GUI dédié.
+- Suite : 87 tests + 10 sous-tests verts, ruff propre, captures régénérées.
 
 ## Session 8 (2026-09-27) — réécriture totale du GUI en PySide6
 

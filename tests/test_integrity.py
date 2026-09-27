@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from romget.infrastructure.storage import confined_path, write_json
-from romget.services.conversion import convert_chd
-from romget.services.download import DownloadCancelled, download
+from cochwa.infrastructure.storage import confined_path, write_json
+from cochwa.services.conversion import convert_chd
+from cochwa.services.download import DownloadCancelled, download
 
 
 class Response:
@@ -137,7 +137,7 @@ class IntegrityTests(unittest.TestCase):
             self.call(Response())
 
     def test_low_space(self):
-        with patch("romget.services.download.shutil.disk_usage", return_value=Mock(free=0)):
+        with patch("cochwa.services.download.shutil.disk_usage", return_value=Mock(free=0)):
             with self.assertRaises(OSError):
                 self.call(Response())
 
@@ -207,8 +207,8 @@ class IntegrityTests(unittest.TestCase):
                 Path(cmd[cmd.index("-o") + 1]).write_bytes(b"chd")
 
         with (
-            patch("romget.services.conversion.shutil.which", return_value="/fake/chdman"),
-            patch("romget.services.conversion.subprocess.run", side_effect=run) as proc,
+            patch("cochwa.services.conversion.shutil.which", return_value="/fake/chdman"),
+            patch("cochwa.services.conversion.subprocess.run", side_effect=run) as proc,
         ):
             target = convert_chd(self.root / "disc1.iso", "dvd")
         self.assertTrue(target.exists())
@@ -237,8 +237,8 @@ class IntegrityTests(unittest.TestCase):
                 raise subprocess.CalledProcessError(1, cmd, stderr="bad CHD")
 
         with (
-            patch("romget.services.conversion.shutil.which", return_value="/fake/chdman"),
-            patch("romget.services.conversion.subprocess.run", side_effect=run),
+            patch("cochwa.services.conversion.shutil.which", return_value="/fake/chdman"),
+            patch("cochwa.services.conversion.subprocess.run", side_effect=run),
         ):
             with self.assertRaises(RuntimeError):
                 convert_chd(source, "dvd")

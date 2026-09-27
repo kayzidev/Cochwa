@@ -13,4 +13,4 @@ python3 -m venv .venv || {
 .venv/bin/python -c 'from PySide6 import QtWidgets' || {
     echo 'PySide6 incomplet : réinstaller le paquet dans le venv.' >&2; exit 1;
 }
-echo 'Installation terminée : .venv/bin/romget ou .venv/bin/romget-gui'
+echo 'Installation terminée : .venv/bin/cochwa ou .venv/bin/cochwa-gui (alias romget* conservés)'

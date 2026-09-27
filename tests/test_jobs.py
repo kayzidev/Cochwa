@@ -7,11 +7,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from romget.infrastructure.storage import file_lock
-from romget.models import IAGame
-from romget.services.download import DownloadCancelled
-from romget.services.jobs import DownloadManager, JobStore
-from romget.services.library import scan
+from cochwa.infrastructure.storage import file_lock
+from cochwa.models import IAGame
+from cochwa.services.download import DownloadCancelled
+from cochwa.services.jobs import DownloadManager, JobStore
+from cochwa.services.library import scan
 
 
 class JobTests(unittest.TestCase):
@@ -48,7 +48,7 @@ class JobTests(unittest.TestCase):
             return path
 
         manager = DownloadManager(self.store)
-        with patch("romget.services.jobs.download", side_effect=fake):
+        with patch("cochwa.services.jobs.download", side_effect=fake):
             manager.start()
             self.wait(lambda: self.row()["status"] == "completed")
             manager.close()
@@ -68,7 +68,7 @@ class JobTests(unittest.TestCase):
             raise DownloadCancelled()
 
         manager = DownloadManager(self.store)
-        with patch("romget.services.jobs.download", side_effect=slow):
+        with patch("cochwa.services.jobs.download", side_effect=slow):
             manager.start()
             self.assertTrue(entered.wait(2))
             manager.pause(self.id)
@@ -99,7 +99,7 @@ class JobTests(unittest.TestCase):
             path.write_text('FILE "missing.bin" BINARY\n')
             return path
 
-        with patch("romget.services.jobs.download", side_effect=fake) as call:
+        with patch("cochwa.services.jobs.download", side_effect=fake) as call:
             with self.assertRaises(ValueError):
                 manager._execute(row)
         self.assertEqual(call.call_count, 1)

@@ -6,9 +6,9 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from romget.cli import main
-from romget.config import Config
-from romget.models import IAGame
+from cochwa.cli import main
+from cochwa.config import Config
+from cochwa.models import IAGame
 
 
 class CliTests(unittest.TestCase):
@@ -41,7 +41,7 @@ class CliTests(unittest.TestCase):
 
     def test_download_requires_selection(self):
         game = IAGame("fixture", "Game", "Game", [{"name": "disc.iso", "size": 6}], "disc.iso", 6)
-        with patch("romget.cli.SearchService.item", return_value=game):
+        with patch("cochwa.cli.SearchService.item", return_value=game):
             code, out, err = self.call("download", "fixture")
         self.assertEqual(code, 2)
         self.assertIn("--file", err)
@@ -49,7 +49,7 @@ class CliTests(unittest.TestCase):
 
     def test_dry_run_no_queue_or_rom_written(self):
         game = IAGame("fixture", "Game", "Game", [{"name": "disc.iso", "size": 6}], "disc.iso", 6)
-        with patch("romget.cli.SearchService.item", return_value=game):
+        with patch("cochwa.cli.SearchService.item", return_value=game):
             code, out, err = self.call("download", "fixture", "--file", "disc.iso", "--dry-run")
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out)["total_size"], 6)
@@ -57,7 +57,7 @@ class CliTests(unittest.TestCase):
 
     def test_iso_conversion_without_media_fails_before_download(self):
         game = IAGame("fixture", "Game", "Game", [{"name": "disc.iso", "size": 6}], "disc.iso", 6)
-        with patch("romget.cli.SearchService.item", return_value=game):
+        with patch("cochwa.cli.SearchService.item", return_value=game):
             code, out, err = self.call("download", "fixture", "--file", "disc.iso", "--chd")
         self.assertEqual(code, 2)
         self.assertIn("--media", err)

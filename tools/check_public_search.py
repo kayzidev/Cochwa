@@ -5,10 +5,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from romget.config import DEFAULT_CACHE_DIR, Config, ProviderConfig
-from romget.services.search import SearchService
+from cochwa.config import DEFAULT_CACHE_DIR, Config, ProviderConfig
+from cochwa.services.search import SearchService
 
-with tempfile.TemporaryDirectory(prefix="romget-public-") as directory:
+with tempfile.TemporaryDirectory(prefix="cochwa-public-") as directory:
     cache = Path(directory)
     old = DEFAULT_CACHE_DIR / "ps2_datfile.json"
     if old.exists():

@@ -2,13 +2,13 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from romget.api.steamgriddb import _ia_cover_url, download_cover, search_grids
+from cochwa.api.steamgriddb import _ia_cover_url, download_cover, search_grids
 
 
 class ArtworkTests(unittest.TestCase):
     def test_autocomplete_term_is_in_path(self):
         with patch(
-            "romget.api.steamgriddb.get_json",
+            "cochwa.api.steamgriddb.get_json",
             side_effect=[
                 {"data": [{"id": 42, "name": "Game #1"}]},
                 {"data": [{"url": "https://cdn.example/image.png"}]},
@@ -25,7 +25,7 @@ class ArtworkTests(unittest.TestCase):
 
     def test_ambiguous_game_does_not_choose_sequel(self):
         with patch(
-            "romget.api.steamgriddb.get_json",
+            "cochwa.api.steamgriddb.get_json",
             return_value={"data": [{"id": 1, "name": "Game 2"}, {"id": 2, "name": "Game 3"}]},
         ) as request:
             self.assertEqual(search_grids("fixture", "Game"), [])
@@ -40,7 +40,7 @@ class ArtworkTests(unittest.TestCase):
             ]
         }
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("romget.api.steamgriddb.get_json", return_value=metadata):
+            with patch("cochwa.api.steamgriddb.get_json", return_value=metadata):
                 url = _ia_cover_url("some-item", tmp)
         self.assertIsNotNone(url)
         self.assertIn("some-item", url)
@@ -49,7 +49,7 @@ class ArtworkTests(unittest.TestCase):
     def test_ia_cover_url_none_without_cover_like_file(self):
         metadata = {"files": [{"name": "game.iso"}, {"name": "ingame_01.png"}]}
         with tempfile.TemporaryDirectory() as tmp:
-            with patch("romget.api.steamgriddb.get_json", return_value=metadata):
+            with patch("cochwa.api.steamgriddb.get_json", return_value=metadata):
                 self.assertIsNone(_ia_cover_url("some-item", tmp))
 
     def test_no_ia_request_when_no_cover_candidate(self):
@@ -58,8 +58,8 @@ class ArtworkTests(unittest.TestCase):
         metadata = {"files": [{"name": "game.iso"}]}
         with tempfile.TemporaryDirectory() as tmp:
             with (
-                patch("romget.api.steamgriddb.get_json", return_value=metadata),
-                patch("romget.api.steamgriddb._fetch_image") as fetch,
+                patch("cochwa.api.steamgriddb.get_json", return_value=metadata),
+                patch("cochwa.api.steamgriddb._fetch_image") as fetch,
             ):
                 result = download_cover("", "Some Game", cache_dir=tmp, ia_identifier="item")
             self.assertIsNone(result)

@@ -13,10 +13,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from romget.api.steamgriddb import _ia_cover_url, search_grids
-from romget.config import DEFAULT_CACHE_DIR, Config, ProviderConfig
-from romget.providers.minerva import MinervaProvider
-from romget.services.search import SearchService
+from cochwa.api.steamgriddb import _ia_cover_url, search_grids
+from cochwa.config import DEFAULT_CACHE_DIR, Config, ProviderConfig
+from cochwa.providers.minerva import MinervaProvider
+from cochwa.services.search import SearchService
 
 NETWORK = os.environ.get("ROMGET_NETWORK_TESTS") == "1"
 
@@ -26,7 +26,7 @@ class NetworkIntegrationTests(unittest.TestCase):
     """Sondes réelles Internet Archive / SteamGridDB — lentes par nature."""
 
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory(prefix="romget-net-")
+        self.tmp = tempfile.TemporaryDirectory(prefix="cochwa-net-")
         cache = Path(self.tmp.name)
         # Réutilise le datfile Redump local si présent (évite un téléchargement).
         old = DEFAULT_CACHE_DIR / "ps2_datfile.json"

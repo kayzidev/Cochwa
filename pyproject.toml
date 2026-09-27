@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "romget"
+name = "cochwa"
 version = "0.2.0"
-description = "Bibliothèque PS2, transferts vérifiés et intégration PCSX2 / Steam ROM Manager"
+description = "Cochwa — bibliothèque de ROMs, transferts vérifiés et intégration PCSX2 / Steam ROM Manager"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -16,15 +16,18 @@ dependencies = ["requests>=2.31,<3", "Pillow>=10,<13", "PySide6>=6.6"]
 dev = ["ruff==0.15.6", "build>=1,<2", "pytest>=8,<10", "pytest-qt>=4.4,<5"]
 
 [project.scripts]
-romget = "romget.cli:main"
-romget-gui = "romget.gui_qt.app:main"
+cochwa = "cochwa.cli:main"
+cochwa-gui = "cochwa.gui_qt.app:main"
+# Alias historiques : les wrappers ~/.local/bin/romget* continuent de fonctionner.
+romget = "cochwa.cli:main"
+romget-gui = "cochwa.gui_qt.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["romget*"]
+include = ["cochwa*"]
 
 [tool.setuptools.package-data]
-"romget.data" = ["*.json"]
+"cochwa.data" = ["*.json"]
 
 [tool.ruff]
 target-version = "py311"

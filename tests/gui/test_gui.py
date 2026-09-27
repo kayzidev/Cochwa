@@ -15,9 +15,9 @@ pytest.importorskip("pytestqt")
 from PySide6.QtCore import QThread  # noqa: E402
 from PySide6.QtWidgets import QDialog, QPushButton  # noqa: E402
 
-from romget.config import Config  # noqa: E402
-from romget.gui_qt.app import MainWindow  # noqa: E402
-from romget.models import IAGame, SearchResult  # noqa: E402
+from cochwa.config import Config  # noqa: E402
+from cochwa.gui_qt.app import MainWindow  # noqa: E402
+from cochwa.models import IAGame, SearchResult  # noqa: E402
 
 
 @pytest.fixture
@@ -30,6 +30,23 @@ def window(qtbot, tmp_path):
     qtbot.addWidget(win)
     win.show()
     return win
+
+
+def test_console_selector_and_logo_placeholder(window):
+    from cochwa.consoles import CONSOLES, DEFAULT_CONSOLE
+
+    assert window.logo.text() == "COCHWA"  # emplacement du futur logo
+    assert window.console is DEFAULT_CONSOLE
+    assert window.console_box.count() == len(CONSOLES)
+    states = [
+        (window.console_box.itemText(i), window.console_box.model().item(i).isEnabled())
+        for i in range(window.console_box.count())
+    ]
+    assert states == [("PlayStation 2", True), ("Switch (bientôt)", False)]
+    # Sélection d'une console inactive : retour à la console courante.
+    window.select_console(1)
+    assert window.console is DEFAULT_CONSOLE
+    assert window.console_box.currentIndex() == 0
 
 
 def test_tabs_and_responsive_grid(window, qtbot):
@@ -82,7 +99,7 @@ def test_external_source_dialog_opens_only_on_click(window):
         source_url="https://minerva-archive.org/rom?id=123",
         external=True,
     )
-    with patch("romget.gui_qt.dialogs.webbrowser.open") as browser:
+    with patch("cochwa.gui_qt.dialogs.webbrowser.open") as browser:
         dialog = window.details(game)
         assert isinstance(dialog, QDialog)
         browser.assert_not_called()

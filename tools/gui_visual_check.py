@@ -10,9 +10,9 @@ from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
 
-from romget.config import Config
-from romget.gui_qt import theme
-from romget.gui_qt.app import MainWindow
+from cochwa.config import Config
+from cochwa.gui_qt import theme
+from cochwa.gui_qt.app import MainWindow
 
 TABS = [
     "rechercher",

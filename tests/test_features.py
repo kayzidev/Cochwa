@@ -7,20 +7,20 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from romget.api.steamgriddb import _title_variants
-from romget.catalog import (
+from cochwa.api.steamgriddb import _title_variants
+from cochwa.catalog import (
     catalog_entries,
     recommended_entries,
     recommended_pool,
     top_entries,
 )
-from romget.config import Config
-from romget.models import IAGame
-from romget.services.conversion import convert_all_chd
-from romget.services.index import LibraryIndex
-from romget.services.library import InstalledGame, export_csv
-from romget.services.search import _dedupe
-from romget.util import human_duration
+from cochwa.config import Config
+from cochwa.models import IAGame
+from cochwa.services.conversion import convert_all_chd
+from cochwa.services.index import LibraryIndex
+from cochwa.services.library import InstalledGame, export_csv
+from cochwa.services.search import _dedupe
+from cochwa.util import human_duration
 
 
 def game(title, size, identifier="id"):
@@ -85,7 +85,7 @@ class DuplicatesTests(unittest.TestCase):
             index = LibraryIndex(Path(tmp) / "idx.sqlite3")
             datfile = Mock()
             datfile.lookup_title_by_md5.return_value = None
-            with patch("romget.services.index.checksum", side_effect=["aaa", "aaa", "bbb"]):
+            with patch("cochwa.services.index.checksum", side_effect=["aaa", "aaa", "bbb"]):
                 for name in ("a.iso", "b.iso", "c.iso"):
                     path = Path(tmp) / name
                     path.write_bytes(b"x")
@@ -132,8 +132,8 @@ class CatalogTests(unittest.TestCase):
                 json.dumps({"games": [{"title": "Custom Game (Europe)", "genre": "Test"}]})
             )
             with (
-                patch("romget.catalog.USER_CATALOG", user_file),
-                patch.dict("romget.catalog._cache", {"entries": None, "mtime": 0.0}),
+                patch("cochwa.catalog.USER_CATALOG", user_file),
+                patch.dict("cochwa.catalog._cache", {"entries": None, "mtime": 0.0}),
             ):
                 titles = [e["title"] for e in catalog_entries()]
             self.assertIn("Custom Game (Europe)", titles)
@@ -167,7 +167,7 @@ class ConvertAllTests(unittest.TestCase):
             done.write_bytes(b"x")
             (root / "c.chd").write_bytes(b"x")
             games = [InstalledGame("G", [iso, cue, done], 3, "Importé", root)]
-            with patch("romget.services.conversion.convert_chd") as convert:
+            with patch("cochwa.services.conversion.convert_chd") as convert:
                 report = convert_all_chd(games)
             self.assertEqual(len(report["converted"]), 2)
             self.assertEqual(report["failed"], [])

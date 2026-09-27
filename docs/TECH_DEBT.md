@@ -14,8 +14,14 @@ lint+format propres, 4 tests d'intégration réseau réels validés.
 (Tkinter supprimé, D4 devenue sans objet). Tests GUI portés sur pytest-qt en
 offscreen — ils tournent dans le sandbox, sans display. Suite : 86 tests +
 10 sous-tests verts, ruff propre, captures Qt dans `docs/validation/qt/`.
-Reste : fusionner `poc-pyside6` dans `master` et vérifier la CI (elle
-installe peut-être encore des paquets Tk/xvfb inutiles).
+CI mise à jour (libs Qt offscreen) et **première exécution réussie** sur
+GitHub (dépôt privé kayzidev/Cochwa).
+
+**Mise à jour 2026-09-27 (session 9)** : projet renommé **Cochwa** (paquet,
+entry points avec alias `romget*` conservés, dépôt GitHub). Reste :
+renommer le dossier du projet `~/Games/scripts/romget` (touche les wrappers
+et le remote local — décision utilisateur), et implémenter la console Switch
+(registre `consoles.py` prêt, UI en place).
 
 ## 1. Point sur la dette technique
 
