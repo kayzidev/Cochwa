@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 from cochwa.config import Config, ProviderConfig
 from cochwa.models import IAGame, SearchResult
+from cochwa.providers.ia_redump import IARedumpProvider, matches_other_platform
 from cochwa.providers.minerva import CatalogParser, MinervaProvider
 from cochwa.services.jobs import JobStore
 from cochwa.services.relevance import dedupe, is_unrequested_asset, relevant
@@ -86,9 +87,9 @@ class QualityTests(unittest.TestCase):
         data = {"response": {"numFound": 1, "docs": [{"identifier": "pack", "title": "PS2 pack"}]}}
         index = Mock(status="fresh", titles=[])
         with (
-            patch.object(service, "_cached", return_value=data),
-            patch.object(service, "item", return_value=pack),
-            patch("cochwa.services.search.get_datfile", return_value=index),
+            patch.object(IARedumpProvider, "_cached", return_value=data),
+            patch.object(IARedumpProvider, "item", return_value=pack),
+            patch("cochwa.providers.ia_redump.get_datfile", return_value=index),
         ):
             result = service.search("gran turismo 4", region="Europe", language="Fr")
             empty = service.search("god of war")
@@ -100,7 +101,7 @@ class QualityTests(unittest.TestCase):
     def test_provider_failure_does_not_hide_other_results(self):
         service = SearchService(Config())
         with (
-            patch.object(service, "_search_ia", side_effect=OSError("offline")),
+            patch.object(IARedumpProvider, "search", side_effect=OSError("offline")),
             patch.object(
                 MinervaProvider,
                 "search",
@@ -116,7 +117,7 @@ class QualityTests(unittest.TestCase):
 
     def test_both_failed_is_not_empty_success(self):
         with (
-            patch.object(SearchService, "_search_ia", side_effect=OSError),
+            patch.object(IARedumpProvider, "search", side_effect=OSError),
             patch.object(MinervaProvider, "search", side_effect=ValueError),
         ):
             with self.assertRaises(RuntimeError):
@@ -126,7 +127,7 @@ class QualityTests(unittest.TestCase):
         config = Config()
         config.providers["minerva"].enabled = False
         with (
-            patch.object(SearchService, "_search_ia", return_value=SearchResult()) as ia,
+            patch.object(IARedumpProvider, "search", return_value=SearchResult()) as ia,
             patch.object(MinervaProvider, "search") as minerva,
         ):
             SearchService(config).search("Game")
@@ -176,3 +177,35 @@ class MinervaTests(unittest.TestCase):
             result = MinervaProvider(Config()).search("Game", verified_only=True)
         fetch.assert_not_called()
         self.assertEqual(result.games, [])
+
+
+class SearchProfileTests(unittest.TestCase):
+    """La stratégie plateforme vit dans consoles.py ; le provider la consomme."""
+
+    def test_switch_profile_rejects_other_consoles(self):
+        from cochwa.consoles import get
+
+        profile = get("switch").search_profile
+        self.assertIsNotNone(profile)
+        # Titres/identifiers d'autres consoles exclus de la recherche Switch.
+        self.assertTrue(matches_other_platform(profile, "God of War II PS2", "gow2_ps2"))
+        self.assertTrue(matches_other_platform(profile, "Halo (Xbox)", "halo_xbox"))
+        self.assertFalse(matches_other_platform(profile, "Pokemon Violet", "pokemon_violet_nsw"))
+
+    def test_switch_profile_collections(self):
+        from cochwa.consoles import get
+
+        profile = get("switch").search_profile
+        self.assertTrue(matches_other_platform(profile, "Game", "game", ["sony_playstation2"]))
+        self.assertFalse(matches_other_platform(profile, "Game", "game", ["nintendo-switch-roms"]))
+
+    def test_ps2_profile_unchanged_via_provider(self):
+        # Le profil PS2 est un déplacement pur : mêmes verdicts qu'avant.
+        self.assertTrue(_matches_other_platform("God of War Collection PS Vita", "gow_vita"))
+        self.assertFalse(_matches_other_platform("Gran Turismo 4 (Europe)", "gt4_eu"))
+
+    def test_provider_requires_a_search_profile(self):
+        from cochwa.consoles import Console
+
+        with self.assertRaises(ValueError):
+            IARedumpProvider(Config(), Console("psp", "PSP"))

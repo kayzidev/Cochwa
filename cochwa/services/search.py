@@ -1,31 +1,36 @@
 """Recherche paginée multi-sources : orchestration, isolation des pannes, dédup.
 
 La connaissance plateforme (termes exclus, collections IA, datfile) vit dans
-les providers ; cette couche choisit les sources compatibles avec la plateforme.
+les providers et le SearchProfile (consoles.py) ; cette couche choisit les
+sources compatibles avec la plateforme et fusionne leurs résultats.
 """
 
 from __future__ import annotations
 
+import re
 from concurrent.futures import ThreadPoolExecutor
 
-from cochwa.api.redump import get_datfile
+from cochwa.consoles import DEFAULT_CONSOLE
 from cochwa.models import SearchResult
-from cochwa.providers.ia_ps2_search import PS2SearchProvider
-from cochwa.providers.ia_ps2_search import _matches_other_platform as _matches_other_platform
-from cochwa.providers.ia_ps2_search import literal as literal
+from cochwa.providers.ia_redump import IARedumpProvider, matches_other_platform
+from cochwa.providers.ia_redump import literal as literal  # compat : tests historiques
 from cochwa.providers.minerva import MinervaProvider
 from cochwa.services.relevance import dedupe
 
 _dedupe = dedupe  # compat : historiquement ré-exporté d'ici
 
 
-class SearchService(PS2SearchProvider):
-    @staticmethod
-    def _get_datfile(*args):
-        return get_datfile(*args)
+def _matches_other_platform(title, identifier, collections=()):
+    """Compat : délègue au profil PS2 (comportement historique)."""
+    return matches_other_platform(DEFAULT_CONSOLE.search_profile, title, identifier, collections)
+
+
+class SearchService:
+    """Orchestration pure : sélection des sources, dispatch parallèle, fusion."""
 
     def __init__(self, config):
         self.config = config
+        self._ia = IARedumpProvider(config)
 
     def search(
         self,
@@ -48,9 +53,10 @@ class SearchService(PS2SearchProvider):
         from cochwa.providers.ia_switch import SwitchArchiveProvider
 
         methods = (
-            {"ia_switch": SwitchArchiveProvider(self._cached).search}
+            # Le provider Switch réutilise le cache metadata du provider IA.
+            {"ia_switch": SwitchArchiveProvider(self._ia._cached).search}
             if platform == "switch"
-            else {"ia_redump": self._search_ia, "minerva": MinervaProvider(self.config).search}
+            else {"ia_redump": self._ia.search, "minerva": MinervaProvider(self.config).search}
         )
         if source != "all" and source not in methods:
             raise ValueError("Source incompatible avec la plateforme")
@@ -98,3 +104,11 @@ class SearchService(PS2SearchProvider):
         result.games = _dedupe(result.games)
         result.suggestions = list(dict.fromkeys(result.suggestions)) if not result.games else []
         return result
+
+    def item(self, identifier, datfile=None):
+        """Fiche détaillée d'un item — délègue au provider après validation."""
+        if identifier.startswith("minerva-"):
+            raise ValueError("MiNERVA : ouvrir la fiche source avec un client torrent externe")
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", identifier):
+            raise ValueError("Identifiant IA invalide")
+        return self._ia.item(identifier, datfile)

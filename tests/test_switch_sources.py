@@ -4,6 +4,7 @@ import pytest
 
 from cochwa.config import Config
 from cochwa.models import SearchResult
+from cochwa.providers.ia_redump import IARedumpProvider
 from cochwa.providers.ia_switch import SwitchArchiveProvider
 from cochwa.services.search import SearchService
 
@@ -45,7 +46,7 @@ def test_switch_search_does_not_call_ps2_sources():
     service = SearchService(Config())
     with (
         patch.object(SwitchArchiveProvider, "search", return_value=SearchResult()) as switch,
-        patch.object(service, "_search_ia") as ps2,
+        patch.object(IARedumpProvider, "search") as ps2,
     ):
         service.search("mario", platform="switch")
         switch.assert_called_once()

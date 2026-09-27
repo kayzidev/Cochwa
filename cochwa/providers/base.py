@@ -2,13 +2,23 @@
 
 from typing import Protocol
 
-from cochwa.models import IAGame
+from cochwa.models import IAGame, SearchResult
 
 
 class Provider(Protocol):
     name: str
     display_name: str
-    platform: str
 
-    def search(self, query: str, limit: int = 20) -> list[IAGame]: ...
-    def find_by_id(self, game_id: str) -> IAGame: ...
+    def search(
+        self,
+        query: str,
+        *,
+        page: int = 1,
+        limit: int = 20,
+        verified_only: bool = False,
+        region: str = "",
+        language: str = "",
+        cancel=None,
+    ) -> SearchResult: ...
+
+    def item(self, identifier: str, datfile=None) -> IAGame: ...

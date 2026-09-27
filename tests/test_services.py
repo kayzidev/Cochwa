@@ -7,6 +7,7 @@ from unittest.mock import Mock, patch
 from cochwa.api.redump import RedumpDatfile
 from cochwa.config import Config
 from cochwa.models import IAGame
+from cochwa.providers.ia_redump import IARedumpProvider
 from cochwa.services.jobs import JobStore
 from cochwa.services.library import scan
 from cochwa.services.search import SearchService, _matches_other_platform, literal
@@ -119,7 +120,7 @@ class ServicesTests(unittest.TestCase):
         index = Mock()
         index.lookup_title_by_md5.return_value = None
         index.is_ps2_title.return_value = True
-        with patch.object(service, "_cached", return_value=metadata):
+        with patch.object(IARedumpProvider, "_cached", return_value=metadata):
             game = service.item("fixture", index)
         self.assertFalse(game.is_ps2)
         self.assertEqual(game.identification, "title")
@@ -136,7 +137,7 @@ class ServicesTests(unittest.TestCase):
                 {"name": "b.iso", "size": 2, "md5": "b"},
             ],
         }
-        with patch.object(service, "_cached", return_value=data):
+        with patch.object(IARedumpProvider, "_cached", return_value=data):
             game = service.item("fixture", index)
         self.assertEqual(game.clean_title, "Pack")
         self.assertFalse(game.is_ps2)
