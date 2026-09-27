@@ -33,6 +33,11 @@ Date : 2026-09-27 (Europe/Paris), mise à jour soir.
   `QWidget.grab()` par page, `--workers` pour covers réelles).
 - Attention : une session parallèle touche aussi `gui_qt/` (wording pages) —
   vérifier `git status` avant commit.
+- **GitHub** : dépôt privé `github.com/kayzidev/romget` créé (gh 2.101.0 dans
+  `~/.local/bin`, compte kayzidev, scopes repo+workflow, credential helper gh).
+  `master` et `poc-pyside6` poussés ; **première exécution CI réussie** (44 s,
+  matrix Python 3.11/3.14, tests GUI Qt en offscreen). Le travail de la session
+  parallèle (recherche/pertinence) est commité dans `b3d1ffa`.
 
 ## Session 7 (2026-09-27) — multi-sources et pertinence
 
