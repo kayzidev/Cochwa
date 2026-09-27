@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-import json
 import os
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import tomli_w
 
 from cochwa.consoles import CONSOLES, DEFAULT_CONSOLE
 from cochwa.infrastructure.storage import atomic_write
@@ -302,36 +303,8 @@ class Config:
         data["providers"] = {
             name: {"enabled": p.enabled, **p.options} for name, p in self.providers.items()
         }
-        atomic_write(target, _toml(data).encode())
+        atomic_write(target, tomli_w.dumps(data).encode())
         self.source = target
 
     def get_provider(self, name):
         return self.providers.get(name)
-
-
-def _toml(data):
-    def scalar(v):
-        if isinstance(v, str):
-            return json.dumps(v, ensure_ascii=False)
-        if isinstance(v, bool):
-            return str(v).lower()
-        if isinstance(v, (int, float)):
-            return repr(v)
-        if isinstance(v, list):
-            return "[" + ", ".join(scalar(x) for x in v) + "]"
-        raise ValueError(f"Type TOML non pris en charge : {type(v).__name__}")
-
-    lines = []
-
-    def table(values, path=()):
-        if path:
-            lines.extend(["", "[" + ".".join(json.dumps(x) for x in path) + "]"])
-        for key, v in values.items():
-            if not isinstance(v, dict):
-                lines.append(f"{json.dumps(key)} = {scalar(v)}")
-        for key, v in values.items():
-            if isinstance(v, dict):
-                table(v, (*path, key))
-
-    table(data)
-    return "\n".join(lines) + "\n"

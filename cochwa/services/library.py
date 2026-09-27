@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
 import subprocess
 from dataclasses import dataclass
@@ -41,12 +43,53 @@ class InstalledGame:
             "directory": str(self.directory),
         }
 
+    @classmethod
+    def from_dict(cls, data):
+        return cls(
+            data["title"],
+            [Path(p) for p in data["paths"]],
+            data["size"],
+            data["status"],
+            Path(data["directory"]),
+        )
+
+
+def _snapshot(root, index=None):
+    """Empreinte (path, size, mtime_ns) de tous les fichiers de la racine.
+
+    Toute addition/suppression/modification invalide le scan mis en cache.
+    Le contenu de l'index (fichiers vérifiés) est inclus : une vérification
+    Redump change les statuts — mais pas l'écriture du cache lui-même.
+    """
+    digest = hashlib.sha256()
+    index_file = Path(index.path).resolve() if index else None
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        for name in sorted(filenames):
+            path = Path(dirpath) / name
+            if index_file and path.resolve() == index_file:
+                continue  # l'écriture du cache ne doit pas s'auto-invalider
+            try:
+                stat = path.lstat()
+            except OSError:
+                continue
+            digest.update(f"{path}\0{stat.st_size}\0{stat.st_mtime_ns}\n".encode())
+    if index:
+        records = index.records()
+        digest.update(json.dumps(sorted(records.items()), default=str).encode())
+    return digest.hexdigest()
+
 
 def scan(root: Path, index=None, extensions=None):
     root = Path(root)
     if not root.is_dir():
         raise FileNotFoundError(f"Dossier ROMs introuvable : {root}")
     extensions = {e.lower() for e in (extensions or DEFAULT_CONSOLE.rom_extensions)}
+    snapshot = _snapshot(root, index) if index else None
+    if index:
+        cached = index.cached_scan(root, extensions)
+        if cached and cached[0] == snapshot:
+            return [InstalledGame.from_dict(g) for g in json.loads(cached[1])]
     index_records = index.records() if index else {}
     groups = {}
     for path in sorted(root.rglob("*")):
@@ -142,7 +185,10 @@ def scan(root: Path, index=None, extensions=None):
                 )
             )
             result.append(InstalledGame(title, playable, size, status, directory))
-    return sorted(result, key=lambda g: g.title.casefold())
+    ordered = sorted(result, key=lambda g: g.title.casefold())
+    if index:
+        index.store_scan(root, extensions, snapshot, json.dumps([g.to_dict() for g in ordered]))
+    return ordered
 
 
 def verify_manifest(directory: Path, cancel=None):

@@ -15,13 +15,17 @@ import requests
 from cochwa import __version__
 from cochwa.api.redump import get_datfile
 from cochwa.config import Config
+from cochwa.consoles import CONSOLES, get
 from cochwa.services.conversion import convert_chd
 from cochwa.services.index import LibraryIndex
 from cochwa.services.jobs import DownloadManager, JobStore
 from cochwa.services.library import launch, scan, verify_manifest
+from cochwa.services.maintenance import purge_quietly
 from cochwa.services.search import SearchService
 from cochwa.steam import trigger_srm_reparse
 from cochwa.util import human_size
+
+CONSOLE_IDS = [c.id for c in CONSOLES]
 
 
 def positive(value):
@@ -55,6 +59,7 @@ def build_parser():
     )
     listing = sub.add_parser("list", help="Bibliothèque locale")
     listing.add_argument("--query", default="")
+    listing.add_argument("--console", choices=CONSOLE_IDS, default="ps2")
     dl = sub.add_parser("download", help="Sélection explicite puis téléchargement")
     dl.add_argument("identifier")
     dl.add_argument("--file", action="append", default=[], help="Nom exact ; option répétable")
@@ -73,7 +78,11 @@ def build_parser():
     verify.add_argument("path", type=Path)
     play = sub.add_parser("play", help="Lancer une image explicite")
     play.add_argument("path", type=Path)
-    sub.add_parser("doctor", help="Diagnostic local sans réseau")
+    play.add_argument("--console", choices=CONSOLE_IDS, default="ps2")
+    doc = sub.add_parser("doctor", help="Diagnostic local sans réseau")
+    doc.add_argument(
+        "--console", choices=CONSOLE_IDS, default=None, help="Limiter le rapport à une console"
+    )
     sub.add_parser("add-steam", help="Ouvrir SRM ; ajout manuel dans SRM")
     providers = sub.add_parser("providers", help="État du provider ou actualisation Redump")
     providers.add_argument("sub", choices=["list", "refresh"], nargs="?", default="list")
@@ -136,18 +145,14 @@ def report_progress(rows):
             )
 
 
-def doctor(config):
+def doctor(config, console_id=None):
+    """Diagnostic local ; rapporte chaque console configurée (ou `console_id`)."""
     import importlib.util
 
-    root = config.ps2_dir
-    return {
+    consoles = [get(console_id)] if console_id else list(CONSOLES)
+    report = {
         "version": __version__,
         "python": sys.version.split()[0],
-        "rom_directory": str(root),
-        "rom_directory_exists": root.is_dir(),
-        "free_bytes": shutil.disk_usage(root).free if root.is_dir() else None,
-        "launcher": str(config.launcher),
-        "launcher_exists": config.launcher.is_file(),
         "chdman": shutil.which("chdman"),
         "flatpak": shutil.which("flatpak"),
         "pyside6": bool(importlib.util.find_spec("PySide6")),
@@ -156,7 +161,28 @@ def doctor(config):
         "cache": str(config.cache_dir),
         "redump_cache_exists": (config.cache_dir / "ps2_datfile.json").is_file(),
         "state": str(config.state_dir),
+        "consoles": {},
     }
+    for console in consoles:
+        root = config.roms_dir(console)
+        launcher = config.launcher_for(console)
+        report["consoles"][console.id] = {
+            "name": console.name,
+            "configured": root is not None,
+            "rom_directory": str(root) if root else None,
+            "rom_directory_exists": root.is_dir() if root else False,
+            "free_bytes": (shutil.disk_usage(root).free if root and root.is_dir() else None),
+            "launcher": str(launcher) if launcher else None,
+            "launcher_exists": launcher.is_file() if launcher else False,
+        }
+    # Clés historiques (PS2) conservées pour les scripts existants.
+    ps2 = report["consoles"].get("ps2") or next(iter(report["consoles"].values()))
+    report["rom_directory"] = ps2["rom_directory"]
+    report["rom_directory_exists"] = ps2["rom_directory_exists"]
+    report["free_bytes"] = ps2["free_bytes"]
+    report["launcher"] = ps2["launcher"]
+    report["launcher_exists"] = ps2["launcher_exists"]
+    return report
 
 
 def main(argv=None):
@@ -164,6 +190,7 @@ def main(argv=None):
     logging.basicConfig(level=logging.DEBUG if args.verbose else logging.WARNING, stream=sys.stderr)
     try:
         cfg = Config.load(args.config)
+        purge_quietly(cfg.cache_dir)  # caches bornés (metadata, marqueurs SGDB)
         search = SearchService(cfg)
         command = args.command
         if command == "search":
@@ -206,9 +233,19 @@ def main(argv=None):
         elif command == "inspect":
             emit(search.item(args.identifier).to_dict(), args)
         elif command == "list":
+            console = get(args.console)
+            root = cfg.roms_dir(console)
+            if root is None:
+                raise ValueError(
+                    f"Console {console.name} non configurée (dossier de jeux manquant)"
+                )
             games = [
                 g
-                for g in scan(cfg.ps2_dir, LibraryIndex(cfg.state_dir / "library.sqlite3"))
+                for g in scan(
+                    root,
+                    LibraryIndex(cfg.state_dir / "library.sqlite3"),
+                    extensions=console.rom_extensions,
+                )
                 if args.query.casefold() in g.title.casefold()
             ]
             if args.json:
@@ -221,7 +258,7 @@ def main(argv=None):
                     )
                 print(f"{len(games)} jeu(x)")
         elif command == "doctor":
-            emit(doctor(cfg), args)
+            emit(doctor(cfg, args.console), args)
         elif command == "convert":
             emit(str(convert_chd(args.source, args.media)), args)
         elif command == "verify":
@@ -236,7 +273,7 @@ def main(argv=None):
                 )
                 emit(result, args)
         elif command == "play":
-            process, log = launch(args.path, cfg)
+            process, log = launch(args.path, cfg, get(args.console))
             emit({"pid": process.pid, "log": str(log), "status": "started"}, args)
         elif command == "add-steam":
             from contextlib import redirect_stdout

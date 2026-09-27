@@ -1,5 +1,6 @@
 import json
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
@@ -9,6 +10,7 @@ from cochwa.config import Config
 from cochwa.consoles import get
 from cochwa.models import IAGame
 from cochwa.providers.ia_redump import IARedumpProvider
+from cochwa.services.index import LibraryIndex
 from cochwa.services.jobs import JobStore
 from cochwa.services.library import scan
 from cochwa.services.search import SearchService, _matches_other_platform, literal
@@ -221,3 +223,81 @@ class GenericConsoleConfigTests(unittest.TestCase):
         self.assertEqual(titles, ["game"])
         # Le registre PS2 est la seule source des extensions par défaut.
         self.assertEqual(set(get("ps2").rom_extensions), {".iso", ".chd", ".cue", ".bin"})
+
+
+class MaintenanceTests(unittest.TestCase):
+    """M2 : purge des caches expirés, jaquettes positives permanentes."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write(self, relative, payload):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload))
+        return path
+
+    def test_purge_expired_metadata_and_negative_markers(self):
+        from cochwa.api.steamgriddb import NEGATIVE_TTL
+        from cochwa.services.maintenance import METADATA_TTL, purge_expired_caches
+
+        now = time.time()
+        fresh_meta = self._write("metadata/fresh.json", {"time": now, "data": {}})
+        old_meta = self._write("metadata/old.json", {"time": now - METADATA_TTL - 10, "data": {}})
+        corrupt = self._write("metadata/corrupt.json", {})
+        (self.root / "metadata/corrupt.json").write_text("{broken")
+        fresh_neg = self._write("covers/a.missing.json", {"at": now})
+        old_neg = self._write("covers/b.missing.json", {"at": now - NEGATIVE_TTL - 10})
+        cover = self._write("covers/keep.png", {})  # jaquette positive : permanente
+        result = purge_expired_caches(self.root, now=now)
+        self.assertEqual(result, {"metadata": 2, "negative_covers": 1})
+        self.assertTrue(fresh_meta.exists())
+        self.assertFalse(old_meta.exists())
+        self.assertFalse(corrupt.exists())
+        self.assertTrue(fresh_neg.exists())
+        self.assertFalse(old_neg.exists())
+        self.assertTrue(cover.exists())
+
+    def test_purge_quietly_never_raises(self):
+        from cochwa.services.maintenance import purge_quietly
+
+        self.assertEqual(purge_quietly(self.root / "absent"), {"metadata": 0, "negative_covers": 0})
+
+
+class IncrementalScanTests(unittest.TestCase):
+    """S3 : scan incrémental — cache hit sans changement, invalidation sinon."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        (self.root / "Game.iso").write_bytes(b"rom")
+        self.index = LibraryIndex(self.root / "state" / "library.sqlite3")
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def test_cache_hit_returns_same_result_without_rescanning(self):
+        first = scan(self.root, self.index)
+        self.assertEqual([g.title for g in first], ["Game"])
+        with patch.object(Path, "rglob", side_effect=AssertionError("rescan")):
+            second = scan(self.root, self.index)
+        self.assertEqual([g.to_dict() for g in second], [g.to_dict() for g in first])
+
+    def test_modification_invalidates_cache(self):
+        scan(self.root, self.index)
+        (self.root / "Other.chd").write_bytes(b"rom")
+        titles = [g.title for g in scan(self.root, self.index)]
+        self.assertEqual(titles, ["Game", "Other"])
+        (self.root / "Game.iso").write_bytes(b"rom plus gros")
+        sizes = {g.title: g.size for g in scan(self.root, self.index)}
+        self.assertEqual(sizes["Game"], len(b"rom plus gros"))
+
+    def test_scan_without_index_never_caches(self):
+        scan(self.root)
+        with patch.object(Path, "rglob", side_effect=AssertionError("rescan")):
+            with self.assertRaises(AssertionError):
+                scan(self.root)

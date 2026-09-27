@@ -40,6 +40,7 @@ from cochwa.gui_qt.widgets import brand_icon, brand_pixmap, navigation_icon
 from cochwa.gui_qt.workers import CoverService, Worker
 from cochwa.services.index import LibraryIndex
 from cochwa.services.jobs import DownloadManager, JobStore
+from cochwa.services.maintenance import purge_quietly
 from cochwa.services.search import SearchService
 
 
@@ -53,6 +54,7 @@ class MainWindow(QMainWindow):
     def __init__(self, config=None, *, start_workers=True):
         super().__init__()
         self.config = config or Config.load()
+        purge_quietly(self.config.cache_dir)  # caches bornés (metadata, marqueurs SGDB)
         self.setWindowTitle(f"Cochwa — Bibliothèque {DEFAULT_CONSOLE.name}")
         self.setWindowIcon(brand_icon())
         self.resize(1280, 860)

@@ -65,3 +65,67 @@ class CliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CliConsoleTests(unittest.TestCase):
+    """M4 : --console sur list/play/doctor."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.switch = self.root / "switch"
+        self.switch.mkdir()
+        (self.switch / "Game [0100ABCD][v0].nsp").write_bytes(b"rom")
+        (self.root / "Game PS2.iso").write_bytes(b"rom")
+        self.config = self.root / "config.toml"
+        Config(
+            ps2_dir=self.root,
+            switch_dir=self.switch,
+            state_dir=self.root / "state",
+            source=self.config,
+        ).save()
+
+    def call(self, *args):
+        output, error = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(output), contextlib.redirect_stderr(error):
+            code = main(["--config", str(self.config), "--json", *args])
+        return code, output.getvalue(), error.getvalue()
+
+    def test_list_console_switch(self):
+        code, out, _ = self.call("list", "--console", "switch")
+        self.assertEqual(code, 0)
+        titles = [g["title"] for g in json.loads(out)]
+        self.assertEqual(titles, ["Game [0100ABCD][v0]"])
+
+    def test_list_console_default_is_ps2(self):
+        code, out, _ = self.call("list")
+        self.assertEqual(code, 0)
+        titles = [g["title"] for g in json.loads(out)]
+        self.assertIn("Game PS2", titles)
+
+    def test_list_console_unconfigured(self):
+        cfg = Config.load(self.config)
+        cfg.switch_dir = None
+        cfg.save()
+        code, _, err = self.call("list", "--console", "switch")
+        self.assertEqual(code, 2)
+        self.assertIn("non configurée", json.loads(err)["error"])
+
+    def test_doctor_reports_each_console(self):
+        code, out, _ = self.call("doctor")
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(set(data["consoles"]), {"ps2", "switch"})
+        self.assertTrue(data["consoles"]["switch"]["configured"])
+        self.assertTrue(data["consoles"]["switch"]["rom_directory_exists"])
+        self.assertFalse(data["consoles"]["switch"]["launcher_exists"])
+        # Clés historiques PS2 conservées.
+        self.assertEqual(data["rom_directory"], str(self.root))
+        self.assertNotIn("steamgrid_api_key", data)
+
+    def test_doctor_console_filter(self):
+        code, out, _ = self.call("doctor", "--console", "switch")
+        self.assertEqual(code, 0)
+        data = json.loads(out)
+        self.assertEqual(set(data["consoles"]), {"switch"})
