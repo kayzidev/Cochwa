@@ -169,6 +169,9 @@ class GameCard(QWidget):
         self._fade.setStartValue(0.0)
         self._fade.setEndValue(1.0)
         self._fade.setEasingCurve(QEasingCurve.OutCubic)
+        # Sans ce retrait, l'effet force le rendu via un cache hors écran :
+        # la jaquette se « décolle » de la carte pendant le défilement.
+        self._fade.finished.connect(lambda: self.cover_label.setGraphicsEffect(None))
         self._fade.start(QPropertyAnimation.DeleteWhenStopped)
 
     # -- Survol : zoom jaquette + bordure accentuée --------------------
@@ -196,6 +199,13 @@ class GameCard(QWidget):
     def _zoom(self, start, end):
         if self._cover is None:
             return
+        # Stoppe l'animation précédente : parentées à la carte, elles
+        # s'accumuleraient en se battant pour la jaquette à chaque survol.
+        # (DeleteWhenStopped laisserait une référence pendante → RuntimeError.)
+        previous = getattr(self, "_zoom_anim", None)
+        if previous is not None:
+            previous.stop()
+            previous.deleteLater()
 
         def apply(factor):
             size = QSize(int(COVER_W * factor), int(COVER_H * factor))
