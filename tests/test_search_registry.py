@@ -5,7 +5,6 @@ sans modifier SearchService ni l'orchestration existante.
 """
 
 import unittest
-from dataclasses import dataclass
 from unittest.mock import Mock, patch
 
 from cochwa.config import Config

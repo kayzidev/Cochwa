@@ -14,8 +14,8 @@ from __future__ import annotations
 
 from cochwa.providers.base import Provider
 from cochwa.providers.ia_redump import IARedumpProvider
-from cochwa.providers.minerva import MinervaProvider
 from cochwa.providers.ia_switch import SwitchArchiveProvider
+from cochwa.providers.minerva import MinervaProvider
 
 # Registry global : nom -> classe
 PROVIDERS: dict[str, type[Provider]] = {
