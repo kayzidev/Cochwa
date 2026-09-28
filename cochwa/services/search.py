@@ -10,10 +10,13 @@ from __future__ import annotations
 import re
 from concurrent.futures import ThreadPoolExecutor
 
+from cochwa import consoles
 from cochwa.consoles import DEFAULT_CONSOLE
 from cochwa.models import SearchResult
+from cochwa.providers import get_console_providers, get_provider
 from cochwa.providers.ia_redump import IARedumpProvider, matches_other_platform
 from cochwa.providers.ia_redump import literal as literal  # compat : tests historiques
+from cochwa.providers.ia_switch import SwitchArchiveProvider
 from cochwa.providers.minerva import MinervaProvider
 from cochwa.services.relevance import dedupe
 
@@ -26,11 +29,32 @@ def _matches_other_platform(title, identifier, collections=()):
 
 
 class SearchService:
-    """Orchestration pure : sélection des sources, dispatch parallèle, fusion."""
+    """Orchestration pure : sélection des sources, dispatch parallèle, fusion.
+    
+    Pour ajouter une console au moteur de recherche :
+    1. Définir Console + SearchProfile dans consoles.py
+    2. Enregistrer les providers dans providers/__init__.py (CONSOLE_PROVIDERS)
+    3. Activer les providers dans la config utilisateur
+    
+    Le service résout automatiquement les providers via le registre.
+    """
 
     def __init__(self, config):
         self.config = config
         self._ia = IARedumpProvider(config)
+
+    def _get_provider_instance(self, name: str):
+        """Instancie un provider par nom, gère les cas spéciaux (ia_switch)."""
+        if name == "ia_switch":
+            # SwitchArchiveProvider réutilise le cache metadata de IARedumpProvider
+            return SwitchArchiveProvider(self._ia._cached)
+        elif name == "ia_redump":
+            return self._ia
+        elif name == "minerva":
+            return MinervaProvider(self.config)
+        else:
+            # Fallback générique via le registre
+            return get_provider(name, self.config)
 
     def search(
         self,
@@ -48,16 +72,25 @@ class SearchService:
         query = query.strip()
         if page < 1 or not 1 <= limit <= 100:
             raise ValueError("Page ≥ 1 et limite entre 1 et 100 requises")
-        if platform not in {"ps2", "switch"}:
-            raise ValueError("Plateforme inconnue")
-        from cochwa.providers.ia_switch import SwitchArchiveProvider
-
-        methods = (
-            # Le provider Switch réutilise le cache metadata du provider IA.
-            {"ia_switch": SwitchArchiveProvider(self._ia._cached).search}
-            if platform == "switch"
-            else {"ia_redump": self._ia.search, "minerva": MinervaProvider(self.config).search}
-        )
+        
+        console = consoles.get(platform)
+        if console is None or console.search_profile is None:
+            raise ValueError("Plateforme inconnue ou recherche non disponible")
+        
+        # Résolution dynamique des providers via le registre
+        available_providers = get_console_providers(platform)
+        if not available_providers:
+            raise ValueError(f"Aucun provider enregistré pour {platform}")
+        
+        methods = {}
+        for provider_name in available_providers:
+            provider = self._get_provider_instance(provider_name)
+            if provider is not None:
+                methods[provider_name] = provider.search
+        
+        if not methods:
+            raise ValueError("Aucun provider disponible pour cette plateforme")
+        
         if source != "all" and source not in methods:
             raise ValueError("Source incompatible avec la plateforme")
         if not query:
