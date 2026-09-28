@@ -67,14 +67,14 @@ class SearchRegistryTests(unittest.TestCase):
         """Un provider fictif peut être enregistré sans modifier SearchService."""
         # Enregistrer le provider stub
         register_provider("stub_console", StubConsoleProvider)
-        
+
         # Enregistrer temporairement la console stub
         original = CONSOLE_PROVIDERS.copy()
         CONSOLE_PROVIDERS["stub_console_test"] = ["stub_console"]
-        
+
         try:
             from cochwa.providers import get_console_providers
-            
+
             providers = get_console_providers("stub_console_test")
             self.assertEqual(providers, ["stub_console"])
         finally:
@@ -88,31 +88,31 @@ class SearchRegistryTests(unittest.TestCase):
         config.providers = {
             "stub_console": Mock(enabled=True),
         }
-        
+
         # Enregistrer le provider et la console stub
         register_provider("stub_console", StubConsoleProvider)
         original_providers = CONSOLE_PROVIDERS.copy()
         CONSOLE_PROVIDERS["stub_test"] = ["stub_console"]
-        
+
         # Créer un SearchProfile stub
         stub_profile = SearchProfile(
             other_platform_terms=("other",),
             console_collection=r"stub",
             other_collection=r"not_stub",
         )
-        
+
         # Mock la console stub dans consoles.get()
         stub_console = Console(
             id="stub_test",
             name="Stub Console",
             search_profile=stub_profile,
         )
-        
+
         try:
             with patch("cochwa.services.search.consoles.get", return_value=stub_console):
                 service = SearchService(config)
                 result = service.search("test query", platform="stub_test")
-                
+
                 # Vérifier que le provider stub a été appelé
                 self.assertEqual(result.source_totals.get("stub_console"), 1)
                 self.assertEqual(result.total_items, 1)
@@ -129,28 +129,29 @@ class SearchRegistryTests(unittest.TestCase):
             "minerva": Mock(enabled=True),
             "ia_switch": Mock(enabled=True),
         }
-        
+
         service = SearchService(config)
-        
+
         # Mock les méthodes de recherche pour éviter les appels réseau
-        with patch.object(service._ia, "search") as mock_ia_search, \
-             patch("cochwa.services.search.MinervaProvider") as mock_minerva_cls, \
-             patch("cochwa.services.search.SwitchArchiveProvider") as mock_switch_cls:
-            
+        with (
+            patch.object(service._ia, "search") as mock_ia_search,
+            patch("cochwa.services.search.MinervaProvider") as mock_minerva_cls,
+            patch("cochwa.services.search.SwitchArchiveProvider") as mock_switch_cls,
+        ):
             mock_ia_search.return_value = SearchResult(page=1)
             mock_minerva_instance = Mock()
             mock_minerva_instance.search.return_value = SearchResult(page=1)
             mock_minerva_cls.return_value = mock_minerva_instance
-            
+
             mock_switch_instance = Mock()
             mock_switch_instance.search.return_value = SearchResult(page=1)
             mock_switch_cls.return_value = mock_switch_instance
-            
+
             # Test PS2
             result_ps2 = service.search("test", platform="ps2")
             self.assertEqual(result_ps2.page, 1)
             mock_ia_search.assert_called()
-            
+
             # Test Switch
             result_switch = service.search("test", platform="switch")
             self.assertEqual(result_switch.page, 1)
@@ -160,16 +161,16 @@ class SearchRegistryTests(unittest.TestCase):
         """Une plateforme inconnue doit lever une erreur claire."""
         config = Mock(spec=Config)
         service = SearchService(config)
-        
+
         with self.assertRaises(ValueError) as ctx:
             service.search("test", platform="unknown")
-        
+
         self.assertIn("Plateforme inconnue", str(ctx.exception))
 
     def test_platform_without_providers_raises_error(self):
         """Une plateforme sans providers enregistrés doit lever une erreur."""
         config = Mock(spec=Config)
-        
+
         # Mock une console sans providers
         empty_console = Console(
             id="empty_test",
@@ -180,13 +181,13 @@ class SearchRegistryTests(unittest.TestCase):
                 other_collection=r"other",
             ),
         )
-        
+
         with patch("cochwa.services.search.consoles.get", return_value=empty_console):
             service = SearchService(config)
-            
+
             with self.assertRaises(ValueError) as ctx:
                 service.search("test", platform="empty_test")
-            
+
             self.assertIn("Aucun provider enregistré", str(ctx.exception))
 
 

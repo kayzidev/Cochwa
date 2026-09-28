@@ -30,12 +30,12 @@ def _matches_other_platform(title, identifier, collections=()):
 
 class SearchService:
     """Orchestration pure : sélection des sources, dispatch parallèle, fusion.
-    
+
     Pour ajouter une console au moteur de recherche :
     1. Définir Console + SearchProfile dans consoles.py
     2. Enregistrer les providers dans providers/__init__.py (CONSOLE_PROVIDERS)
     3. Activer les providers dans la config utilisateur
-    
+
     Le service résout automatiquement les providers via le registre.
     """
 
@@ -72,25 +72,25 @@ class SearchService:
         query = query.strip()
         if page < 1 or not 1 <= limit <= 100:
             raise ValueError("Page ≥ 1 et limite entre 1 et 100 requises")
-        
+
         console = consoles.get(platform)
         if console is None or console.search_profile is None:
             raise ValueError("Plateforme inconnue ou recherche non disponible")
-        
+
         # Résolution dynamique des providers via le registre
         available_providers = get_console_providers(platform)
         if not available_providers:
             raise ValueError(f"Aucun provider enregistré pour {platform}")
-        
+
         methods = {}
         for provider_name in available_providers:
             provider = self._get_provider_instance(provider_name)
             if provider is not None:
                 methods[provider_name] = provider.search
-        
+
         if not methods:
             raise ValueError("Aucun provider disponible pour cette plateforme")
-        
+
         if source != "all" and source not in methods:
             raise ValueError("Source incompatible avec la plateforme")
         if not query:
