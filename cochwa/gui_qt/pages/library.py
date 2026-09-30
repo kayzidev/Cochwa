@@ -21,6 +21,7 @@ from PySide6.QtWidgets import (
 from cochwa.gui_qt import theme
 from cochwa.gui_qt.cards import GameCard
 from cochwa.gui_qt.grid import CardGrid
+from cochwa.gui_qt.pages.emulators import ReadyPanel
 from cochwa.gui_qt.widgets import PageHeader
 from cochwa.services.conversion import convert_all_chd
 from cochwa.services.library import export_csv, scan
@@ -96,17 +97,39 @@ class LibraryPage(QWidget):
         layout.addWidget(self.status)
 
         self.grid = CardGrid()
-        layout.addWidget(self.grid, stretch=1)
+        self.library_body = QHBoxLayout()
+        self.library_body.addWidget(self.grid, stretch=1)
+        self.ready = ReadyPanel(app)
+        self.ready.setFixedWidth(248)
+        self.library_body.addWidget(self.ready)
+        layout.addLayout(self.library_body, stretch=1)
         self.grid.set_empty(
             "Ajoutez votre dossier de jeux dans les paramètres, puis actualisez la bibliothèque.",
             "Faites place à vos jeux",
             "Configurer mes dossiers",
-            lambda: self.app.sidebar.setCurrentRow(5),
+            lambda: self.app.navigate("settings"),
         )
         self.app.covers.loaded.connect(self._on_cover)
         self.convert_progress.connect(
             lambda i, total, name: self.status.setText(f"Conversion {i}/{total} : {name}")
         )
+
+    def activate(self):
+        self.ready.refresh()
+
+    def resizeEvent(self, event):
+        # En fenêtre compacte, le catalogue reste lisible ; le panneau devient
+        # une section au-dessus des jeux, dans la même page.
+        from PySide6.QtWidgets import QBoxLayout
+
+        compact = self.width() < 820
+        self.ready.setFixedWidth(248 if not compact else self.width() - 56)
+        self.ready.set_compact(compact)
+        self.ready.setMaximumHeight(110 if compact else 16777215)
+        self.library_body.setDirection(
+            QBoxLayout.TopToBottom if compact else QBoxLayout.LeftToRight
+        )
+        super().resizeEvent(event)
 
     # -- Chargement -----------------------------------------------------
 
@@ -140,7 +163,7 @@ class LibraryPage(QWidget):
                 f"Choisissez le dossier de vos jeux {console.name}.",
                 "Votre collection vous attend",
                 "Configurer mes dossiers",
-                lambda: self.app.sidebar.setCurrentRow(5),
+                lambda: self.app.navigate("settings"),
             )
             return
         # Le dossier de téléchargement distinct ne concerne que la console
@@ -166,6 +189,8 @@ class LibraryPage(QWidget):
             return
         self.games = games
         self.render()
+        if hasattr(self.app, "tab_collections"):
+            self.app.tab_collections.render()
 
     def failed(self, error, generation):
         if generation == self.generation:
@@ -232,7 +257,7 @@ class LibraryPage(QWidget):
                 f"Choisissez le dossier de vos jeux {console.name} dans les paramètres.",
                 "Votre collection vous attend",
                 "Configurer mes dossiers",
-                lambda: self.app.sidebar.setCurrentRow(5),
+                lambda: self.app.navigate("settings"),
             )
 
     # -- Actions ----------------------------------------------------------

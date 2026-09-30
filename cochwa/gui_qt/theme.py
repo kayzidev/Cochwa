@@ -74,7 +74,7 @@ QWidget#section {{ background: {PANEL}; border: 1px solid #2C3040; border-radius
 QWidget#formBody {{ background: transparent; }}
 QListWidget#sidebar {{ background: transparent; border: none; outline: 0; padding: 6px;
     font-size: 14px; }}
-QListWidget#sidebar::item {{ padding: 10px 10px; margin: 2px 2px; border-radius: 9px;
+QListWidget#sidebar::item {{ padding: 8px 10px; margin: 1px 2px; border-radius: 9px;
     color: {MUTED}; }}
 QListWidget#sidebar::item:selected {{ background: {ACCENT}; color: {TEXT}; }}
 QListWidget#sidebar::item:hover:!selected {{ background: {CARD}; color: {TEXT}; }}

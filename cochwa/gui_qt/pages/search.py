@@ -104,7 +104,7 @@ class SearchPage(QWidget):
             "Recherchez un titre ou parcourez la sélection du jour.",
             "Votre prochain jeu commence ici",
             "Découvrir les recommandations",
-            lambda: self.app.sidebar.setCurrentRow(2),
+            lambda: self.app.navigate("recommended"),
         )
 
         pager = QHBoxLayout()

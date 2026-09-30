@@ -2,6 +2,23 @@
 
 Date : 2026-09-27 (Europe/Paris), mise à jour soir.
 
+## Session 14 (2026-09-27) — Interface féline, collections et émulateurs
+
+- Logo n°3 de la planche appliqué en SVG ; charte et documentation alignées.
+- Dix destinations de navigation, clés stables et suppression des indices magiques
+  dans les actions de recherche, paramètres et téléchargements.
+- Collections personnelles par console : édition de listes, renommage et retrait
+  sans supprimer les jeux ; stockage JSON atomique sous verrou.
+- Page Émulateurs : catalogue de 22 projets, filtres, liens officiels vérifiés,
+  détection PATH/Flatpak et lanceurs existants, ajout d’exécutables persistants.
+- Panneau Prêt à jouer dans la bibliothèque, version compacte en petite fenêtre.
+  Détection passive ; distinction exécutable disponible / lanceur configuré.
+- Page Outils raccordée aux fonctions éprouvées CSV, doublons, CHD, SRM, diagnostic.
+- Validation : 142 tests + 10 sous-tests réussis, 5 tests réseau facultatifs ignorés.
+  Lint/format et build sdist/wheel réussis ; catalogue et SVG vérifiés dans le paquet.
+  Captures des dix pages en 1280 × 860 et 800 × 600 dans `docs/validation/feline/`.
+  Aucune ROM, configuration personnelle, installation d’émulateur ou donnée Steam modifiée.
+
 ## Session 13 (2026-09-27) — scalabilité : plan P1/P2/P3 de l'audit
 
 - **P1 (S2)** : `SearchProfile` dans `consoles.py` (termes exclus, collections

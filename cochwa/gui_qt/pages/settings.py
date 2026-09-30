@@ -268,6 +268,7 @@ class SettingsPage(QWidget):
             config.download_dir = download_dir
             config.steamgrid_api_key = self.values["key"].text().strip()
             config.save()
+            self.app.tab_library.ready.refresh()
             self.app.covers.results.clear()
             self.app.tab_library.refresh()
             self.save_status.setText("✓ Paramètres enregistrés")

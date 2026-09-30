@@ -9,7 +9,7 @@ Le sélecteur adapte les écrans, le Top, les téléchargements et les paramètr
 - Palette centralisée dans `cochwa/gui_qt/theme.py`, avec les dix couleurs de la charte.
 - Geist Regular et SemiBold embarquées, licence SIL OFL dans `gui_qt/assets/OFL.txt`.
   Source des polices : https://github.com/vercel/geist-font (fichiers TTF, branche main).
-- Premier logo « Portail » choisi par l’utilisateur : C arrondi et carré corail. Icône
+- Logo n°3 « Interface féline » choisi par l’utilisateur : C violet et œil corail. Icône
   de fenêtre et pictogrammes natifs indépendants des polices emoji.
 - En-têtes, panneaux et états vides communs dans `gui_qt/widgets.py`.
 - Fonds sobres, focus clavier visible, statuts exprimés en texte, jaquettes
@@ -34,9 +34,9 @@ Le sélecteur adapte les écrans, le Top, les téléchargements et les paramètr
 
 ## Validation
 
-Captures des sept écrans à 1280 × 860 (bibliothèque PS2 réelle, lecture seule et
+Captures des dix écrans à 1280 × 860 (bibliothèque PS2 réelle, lecture seule et
 jaquettes en cache) et 800 × 600 (configuration temporaire) dans
-[validation/cochwa](validation/cochwa). Dialogues et états peuplés de démonstration
+[validation/feline](validation/feline). Dialogues et états peuplés de démonstration
 également contrôlés dans `validation/cochwa/states`.
 
 ```sh
@@ -52,3 +52,18 @@ La capture isole SQLite dans un dossier temporaire et ne démarre aucun transfer
 Les tests ne lancent pas d'émulateur et n'écrivent pas dans les ROMs utilisateur.
 Les transferts réseau, émulateurs réels et le rendu natif Windows/Steam Deck ne
 font pas partie de cette validation visuelle Linux Qt offscreen.
+
+## Navigation et émulateurs
+
+Ordre : Bibliothèque, Collections, Émulateurs, Rechercher, Recommandés, Top de
+la console, Téléchargements, Outils, Paramètres, Support. Les actions utilisent
+`navigate(key)` ; elles ne dépendent plus du numéro de ligne dans la sidebar.
+Le pied de sidebar se replie en petite fenêtre pour garder les destinations visibles.
+
+Collections : création, renommage, sélection des jeux, suppression des références
+sans toucher aux ROMs. Les listes sont séparées par console et persistées atomiquement.
+Prêt à jouer : panneau latéral en grand format, raccourci compact en 800 × 600.
+Émulateurs : catalogue multiconsole, recherche, filtre, site officiel, ajout d’un
+binaire/AppImage/script et ouverture. Un lanceur de ROM existant ne s’exécute
+jamais sans jeu. Les chemins PS2/Switch déjà enregistrés ne sont pas remplacés.
+Voir [les sources du catalogue](EMULATORS.md).

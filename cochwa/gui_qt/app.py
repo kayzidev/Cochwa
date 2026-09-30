@@ -29,12 +29,15 @@ from cochwa.config import Config
 from cochwa.consoles import CONSOLES, DEFAULT_CONSOLE
 from cochwa.gui_qt import theme
 from cochwa.gui_qt.dialogs import LocalDetailsDialog, RemoteDetailsDialog, choose_cover
+from cochwa.gui_qt.pages.collections import CollectionsPage
 from cochwa.gui_qt.pages.downloads import DownloadsPage
+from cochwa.gui_qt.pages.emulators import EmulatorsPage
 from cochwa.gui_qt.pages.gamelist import RecommendedPage, TopPage
 from cochwa.gui_qt.pages.library import LibraryPage
 from cochwa.gui_qt.pages.search import SearchPage
 from cochwa.gui_qt.pages.settings import SettingsPage
 from cochwa.gui_qt.pages.support import SupportPage
+from cochwa.gui_qt.pages.tools import ToolsPage
 from cochwa.gui_qt.toasts import ToastManager
 from cochwa.gui_qt.widgets import brand_icon, brand_pixmap, navigation_icon
 from cochwa.gui_qt.workers import CoverService, Worker
@@ -90,16 +93,25 @@ class MainWindow(QMainWindow):
         self.tab_downloads = DownloadsPage(self)
         self.tab_settings = SettingsPage(self)
         self.tab_support = SupportPage(self)
-        for page, label in [
-            (self.tab_library, "Bibliothèque"),
-            (self.tab_search, "Rechercher"),
-            (self.tab_recommended, "Recommandés"),
-            (self.tab_top, "Top PS2"),
-            (self.tab_downloads, "Téléchargements"),
-            (self.tab_settings, "Paramètres"),
-            (self.tab_support, "Support"),
+        self.tab_collections = CollectionsPage(self)
+        self.tab_emulators = EmulatorsPage(self)
+        self.tab_tools = ToolsPage(self)
+        self.routes = {}
+        for key, page, label in [
+            ("library", self.tab_library, "Bibliothèque"),
+            ("collections", self.tab_collections, "Collections"),
+            ("emulators", self.tab_emulators, "Émulateurs"),
+            ("search", self.tab_search, "Rechercher"),
+            ("recommended", self.tab_recommended, "Recommandés"),
+            ("top", self.tab_top, "Top PS2"),
+            ("downloads", self.tab_downloads, "Téléchargements"),
+            ("tools", self.tab_tools, "Outils"),
+            ("settings", self.tab_settings, "Paramètres"),
+            ("support", self.tab_support, "Support"),
         ]:
-            QListWidgetItem(navigation_icon(label), label, self.sidebar)
+            self.routes[key] = self.pages.count()
+            item = QListWidgetItem(navigation_icon(label), label, self.sidebar)
+            item.setToolTip(label)
             self.pages.addWidget(page)
         root.addWidget(self.pages, stretch=1)
         self.setCentralWidget(central)
@@ -164,11 +176,16 @@ class MainWindow(QMainWindow):
         self.platform_note.setObjectName("muted")
         self.platform_note.setWordWrap(True)
         layout.addWidget(self.platform_note)
-        shortcut = QLabel("Recherche rapide  ·  Ctrl + K")
+        self.shortcut_hint = shortcut = QLabel("Recherche rapide  ·  Ctrl + K")
         shortcut.setObjectName("muted")
         shortcut.setStyleSheet("font-size: 11px;")
         layout.addWidget(shortcut)
         return panel
+
+    def resizeEvent(self, event):
+        self.platform_note.setVisible(self.height() >= 740)
+        self.shortcut_hint.setVisible(self.height() >= 740)
+        super().resizeEvent(event)
 
     def select_console(self, index):
         """Change de console : titre, bibliothèque et pages concernées suivent."""
@@ -181,12 +198,14 @@ class MainWindow(QMainWindow):
         self.console = console
         self.console_box.setCurrentIndex(index)
         self.tab_search.activate()
-        self.sidebar.item(3).setText(f"Top {console.short_name}")
+        self.sidebar.item(self.routes["top"]).setText(f"Top {console.short_name}")
         self.platform_note.setText(f"Catalogue & bibliothèque\n{console.name}")
         self.tab_library.games = []
         self.tab_library.grid.clear()
         self.tab_recommended.grid.clear()
         self.tab_top.grid.clear()
+        self.tab_collections.grid.clear()
+        self.tab_library.ready.refresh()
         self.tab_downloads.refresh()
         self.setWindowTitle(f"Cochwa — Bibliothèque {console.name}")
         self.tab_library.refresh()
@@ -200,22 +219,32 @@ class MainWindow(QMainWindow):
     # -- Navigation -----------------------------------------------------
 
     def activate(self, row):
+        if row < 0 or row >= self.pages.count():
+            return
         self.pages.setCurrentIndex(row)
         page = self.pages.currentWidget()
         if hasattr(page, "activate"):
             page.activate()
 
+    def navigate(self, key):
+        """Destinations stables, indépendantes de l’ordre visuel du menu."""
+        row = self.routes[key]
+        if self.sidebar.currentRow() == row:
+            self.activate(row)
+        else:
+            self.sidebar.setCurrentRow(row)
+
     def focus_search(self):
-        self.sidebar.setCurrentRow(1)
+        self.navigate("search")
         self.tab_search.query.setFocus()
         self.tab_search.query.selectAll()
 
     def show_downloads(self):
-        self.sidebar.setCurrentRow(4)
+        self.navigate("downloads")
         self.tab_downloads.refresh()
 
     def search_title(self, title):
-        self.sidebar.setCurrentRow(1)
+        self.navigate("search")
         self.tab_search.query.setText(title.split("(")[0].strip())
         self.tab_search.do_search()
 

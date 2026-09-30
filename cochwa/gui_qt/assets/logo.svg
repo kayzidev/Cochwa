@@ -1,5 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
-<defs><linearGradient id="portal" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#C1B4FF"/><stop offset=".45" stop-color="#7567FF"/><stop offset="1" stop-color="#7845EE"/></linearGradient><linearGradient id="core" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FF9F8C"/><stop offset="1" stop-color="#FF7867"/></linearGradient></defs>
-<path d="M108 18Q108 12 102 12H66C-2 12-2 116 66 116H102Q108 116 108 110V98Q108 92 102 92H66C29 92 29 36 66 36H102Q108 36 108 30Z" fill="url(#portal)"/>
-<rect x="64" y="50" width="31" height="30" rx="7" fill="url(#core)"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+ <title>Cochwa — Interface féline</title>
+ <defs><linearGradient id="fur" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#C2B6FF"/><stop offset=".45" stop-color="#7567FF"/><stop offset="1" stop-color="#5735EF"/></linearGradient></defs>
+ <path d="M91 8H51C26 8 9 27 9 51s18 42 42 42h40c0-15-10-25-26-25H51c-11 0-18-7-18-17s7-18 18-18h15C82 33 91 23 91 8Z" fill="url(#fur)"/>
+ <path d="M45 46c9-3 21-1 29 9-3 7-10 10-17 6-6-3-9-9-12-15Z" fill="#FF7867"/>
+ <path d="M58 46c-2 5-2 10 2 13 4-3 5-7 3-12Z" fill="#11131A"/>
 </svg>

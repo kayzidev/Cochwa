@@ -28,6 +28,11 @@ L’identité doit être :
 
 # Identité Cochwa
 
+**Choix utilisateur actuel : logo n°3 « Interface féline » de `PlancheGraphique.png`.**
+Le symbole de référence est le C violet avec un œil félin corail en espace central.
+Il est décliné en SVG pour la fenêtre, la barre latérale et les états vides.
+Ce choix remplace le logo n°1 précédemment sélectionné.
+
 Le logo repose sur un **C stylisé**, associé à l’idée de :
 
 - portail ;

@@ -144,7 +144,7 @@ class RemoteDetailsDialog(QDialog):
         controls.addWidget(enqueue)
         if game.platform == "switch" and app.config.switch_dir is None:
             setup = QPushButton("Configurer Switch")
-            setup.clicked.connect(lambda: (app.sidebar.setCurrentRow(5), self.reject()))
+            setup.clicked.connect(lambda: (app.navigate("settings"), self.reject()))
             controls.addWidget(setup)
         select_all = QPushButton("Tout sélectionner")
         select_all.clicked.connect(self.table.selectAll)

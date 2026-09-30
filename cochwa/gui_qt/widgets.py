@@ -8,7 +8,7 @@ from cochwa.gui_qt import theme
 
 
 def brand_pixmap(size=48):
-    """Premier logo de la planche : portail C arrondi et carré corail."""
+    """Logo n°3 de la planche : C violet et œil félin corail."""
     from pathlib import Path
 
     from PySide6.QtSvg import QSvgRenderer
@@ -113,6 +113,20 @@ def navigation_icon(name):
         if name == "Bibliothèque":
             for x, y in ((2, 2), (10, 2), (2, 10), (10, 10)):
                 p.drawRoundedRect(QRectF(x, y, 5, 5), 1, 1)
+        elif name == "Collections":
+            p.drawRoundedRect(QRectF(2, 5, 14, 11), 2, 2)
+            p.drawLine(4, 2, 14, 2)
+            p.drawLine(3, 4, 15, 4)
+        elif name == "Émulateurs":
+            p.drawRoundedRect(QRectF(1, 5, 16, 9), 3, 3)
+            p.drawLine(4, 9, 8, 9)
+            p.drawLine(6, 7, 6, 11)
+            p.drawEllipse(QRectF(11, 8, 1, 1))
+            p.drawEllipse(QRectF(14, 10, 1, 1))
+        elif name == "Outils":
+            p.drawLine(3, 15, 12, 6)
+            p.drawArc(QRectF(8, 1, 8, 8), 90 * 16, 270 * 16)
+            p.drawEllipse(QRectF(2, 13, 3, 3))
         elif name == "Rechercher":
             p.drawEllipse(QRectF(2, 2, 10, 10))
             p.drawLine(11, 11, 16, 16)

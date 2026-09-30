@@ -12,7 +12,7 @@ import hashlib
 import sys
 import tempfile
 import time
-from dataclasses import replace
+from copy import copy
 from pathlib import Path
 
 from PySide6.QtWidgets import QApplication
@@ -24,10 +24,13 @@ from cochwa.services.library import scan
 
 TABS = [
     "bibliotheque",
+    "collections",
+    "emulateurs",
     "rechercher",
     "recommandes",
     "top-ps2",
     "telechargements",
+    "outils",
     "parametres",
     "support",
 ]
@@ -54,7 +57,8 @@ def main():
             },
         )
         if args.local_library or args.workers:
-            config = replace(Config.load(), state_dir=root / "state")
+            config = copy(Config.load())
+            config.state_dir = root / "state"
         window = MainWindow(config, start_workers=False)
         if args.compact:
             window.resize(800, 600)

@@ -1,0 +1,382 @@
+[
+  {
+    "id": "pcsx2",
+    "name": "PCSX2",
+    "platforms": [
+      "PlayStation 2"
+    ],
+    "url": "https://pcsx2.net/",
+    "executables": [
+      "pcsx2-qt",
+      "pcsx2"
+    ],
+    "flatpaks": [
+      "net.pcsx2.PCSX2"
+    ],
+    "note": "BIOS PS2 à configurer.",
+    "integration": "ps2"
+  },
+  {
+    "id": "ryubing",
+    "name": "Ryubing / Ryujinx",
+    "platforms": [
+      "Switch"
+    ],
+    "url": "https://docs.ryujinx.app/",
+    "executables": [
+      "Ryujinx",
+      "ryujinx",
+      "Ryubing"
+    ],
+    "flatpaks": [],
+    "note": "Fork de Ryujinx ; firmware et clés personnels à configurer.",
+    "integration": "switch"
+  },
+  {
+    "id": "dolphin",
+    "name": "Dolphin",
+    "platforms": [
+      "GameCube",
+      "Wii"
+    ],
+    "url": "https://dolphin-emu.org/",
+    "executables": [
+      "dolphin-emu"
+    ],
+    "flatpaks": [
+      "org.DolphinEmu.dolphin-emu"
+    ],
+    "note": "GameCube et Wii.",
+    "integration": ""
+  },
+  {
+    "id": "ppsspp",
+    "name": "PPSSPP",
+    "platforms": [
+      "PSP"
+    ],
+    "url": "https://www.ppsspp.org/",
+    "executables": [
+      "PPSSPPSDL",
+      "PPSSPPQt",
+      "ppsspp"
+    ],
+    "flatpaks": [
+      "org.ppsspp.PPSSPP"
+    ],
+    "note": "PlayStation Portable.",
+    "integration": ""
+  },
+  {
+    "id": "duckstation",
+    "name": "DuckStation",
+    "platforms": [
+      "PlayStation"
+    ],
+    "url": "https://www.duckstation.org/",
+    "executables": [
+      "duckstation-qt",
+      "duckstation"
+    ],
+    "flatpaks": [
+      "org.duckstation.DuckStation"
+    ],
+    "note": "BIOS PlayStation à configurer.",
+    "integration": ""
+  },
+  {
+    "id": "rpcs3",
+    "name": "RPCS3",
+    "platforms": [
+      "PlayStation 3"
+    ],
+    "url": "https://rpcs3.net/",
+    "executables": [
+      "rpcs3"
+    ],
+    "flatpaks": [
+      "net.rpcs3.RPCS3"
+    ],
+    "note": "Firmware requis ; consulter la compatibilité des jeux.",
+    "integration": ""
+  },
+  {
+    "id": "vita3k",
+    "name": "Vita3K",
+    "platforms": [
+      "PS Vita"
+    ],
+    "url": "https://vita3k.org/",
+    "executables": [
+      "Vita3K",
+      "vita3k"
+    ],
+    "flatpaks": [
+      "org.vita3k.Vita3K"
+    ],
+    "note": "Expérimental ; compatibilité variable.",
+    "integration": ""
+  },
+  {
+    "id": "cemu",
+    "name": "Cemu",
+    "platforms": [
+      "Wii U"
+    ],
+    "url": "https://cemu.info/",
+    "executables": [
+      "Cemu",
+      "cemu"
+    ],
+    "flatpaks": [
+      "info.cemu.Cemu"
+    ],
+    "note": "Consulter les prérequis graphiques.",
+    "integration": ""
+  },
+  {
+    "id": "azahar",
+    "name": "Azahar",
+    "platforms": [
+      "Nintendo 3DS"
+    ],
+    "url": "https://azahar-emu.org/",
+    "executables": [
+      "azahar"
+    ],
+    "flatpaks": [
+      "org.azahar_emu.Azahar"
+    ],
+    "note": "Successeur communautaire de Citra.",
+    "integration": ""
+  },
+  {
+    "id": "melonds",
+    "name": "melonDS",
+    "platforms": [
+      "Nintendo DS",
+      "Nintendo DSi"
+    ],
+    "url": "https://melonds.kuribo64.net/",
+    "executables": [
+      "melonDS"
+    ],
+    "flatpaks": [
+      "net.kuribo64.melonDS"
+    ],
+    "note": "DS et DSi.",
+    "integration": ""
+  },
+  {
+    "id": "mgba",
+    "name": "mGBA",
+    "platforms": [
+      "Game Boy",
+      "Game Boy Color",
+      "Game Boy Advance"
+    ],
+    "url": "https://mgba.io/",
+    "executables": [
+      "mgba-qt",
+      "mgba"
+    ],
+    "flatpaks": [
+      "io.mgba.mGBA"
+    ],
+    "note": "Game Boy et Game Boy Advance.",
+    "integration": ""
+  },
+  {
+    "id": "sameboy",
+    "name": "SameBoy",
+    "platforms": [
+      "Game Boy",
+      "Game Boy Color"
+    ],
+    "url": "https://sameboy.github.io/",
+    "executables": [
+      "sameboy"
+    ],
+    "flatpaks": [
+      "io.github.sameboy.SameBoy"
+    ],
+    "note": "Émulation Game Boy et Game Boy Color.",
+    "integration": ""
+  },
+  {
+    "id": "mupen64plus",
+    "name": "Mupen64Plus",
+    "platforms": [
+      "Nintendo 64"
+    ],
+    "url": "https://mupen64plus.org/",
+    "executables": [
+      "mupen64plus"
+    ],
+    "flatpaks": [],
+    "note": "Moteur N64 ; interface séparée selon installation.",
+    "integration": ""
+  },
+  {
+    "id": "mesen",
+    "name": "Mesen",
+    "platforms": [
+      "NES",
+      "Super Nintendo",
+      "Game Boy",
+      "Game Boy Advance",
+      "PC Engine",
+      "Master System",
+      "Game Gear",
+      "WonderSwan"
+    ],
+    "url": "https://github.com/SourMesen/Mesen2",
+    "executables": [
+      "Mesen",
+      "mesen"
+    ],
+    "flatpaks": [
+      "io.github.SourMesen.Mesen2"
+    ],
+    "note": "Émulateur de plusieurs systèmes classiques.",
+    "integration": ""
+  },
+  {
+    "id": "snes9x",
+    "name": "Snes9x",
+    "platforms": [
+      "Super Nintendo"
+    ],
+    "url": "https://github.com/snes9xgit/snes9x",
+    "executables": [
+      "snes9x-gtk",
+      "snes9x"
+    ],
+    "flatpaks": [
+      "com.snes9x.Snes9x"
+    ],
+    "note": "Super Nintendo.",
+    "integration": ""
+  },
+  {
+    "id": "flycast",
+    "name": "Flycast",
+    "platforms": [
+      "Dreamcast",
+      "Naomi",
+      "Atomiswave"
+    ],
+    "url": "https://github.com/flyinghead/flycast",
+    "executables": [
+      "flycast"
+    ],
+    "flatpaks": [
+      "org.flycast.Flycast"
+    ],
+    "note": "Dreamcast et systèmes arcade Sega.",
+    "integration": ""
+  },
+  {
+    "id": "mednafen",
+    "name": "Mednafen",
+    "platforms": [
+      "Saturn",
+      "PlayStation",
+      "PC Engine",
+      "Neo Geo Pocket",
+      "WonderSwan"
+    ],
+    "url": "https://mednafen.github.io/",
+    "executables": [
+      "mednafen"
+    ],
+    "flatpaks": [],
+    "note": "Moteur multiconsole ; certains systèmes nécessitent un BIOS.",
+    "integration": ""
+  },
+  {
+    "id": "ares",
+    "name": "ares",
+    "platforms": [
+      "Nintendo 64",
+      "NES",
+      "Super Nintendo",
+      "Mega Drive",
+      "Master System",
+      "Game Gear",
+      "PC Engine"
+    ],
+    "url": "https://ares-emu.net/",
+    "executables": [
+      "ares"
+    ],
+    "flatpaks": [
+      "dev.ares.ares"
+    ],
+    "note": "Multiconsole, orienté précision.",
+    "integration": ""
+  },
+  {
+    "id": "xemu",
+    "name": "xemu",
+    "platforms": [
+      "Xbox"
+    ],
+    "url": "https://xemu.app/",
+    "executables": [
+      "xemu"
+    ],
+    "flatpaks": [
+      "app.xemu.xemu"
+    ],
+    "note": "BIOS, image disque et compatibilité à vérifier.",
+    "integration": ""
+  },
+  {
+    "id": "xenia",
+    "name": "Xenia",
+    "platforms": [
+      "Xbox 360"
+    ],
+    "url": "https://xenia.jp/",
+    "executables": [
+      "xenia",
+      "xenia.exe"
+    ],
+    "flatpaks": [],
+    "note": "Projet de recherche ; principalement Windows.",
+    "integration": ""
+  },
+  {
+    "id": "mame",
+    "name": "MAME",
+    "platforms": [
+      "Arcade"
+    ],
+    "url": "https://www.mamedev.org/",
+    "executables": [
+      "mame"
+    ],
+    "flatpaks": [
+      "org.mamedev.MAME"
+    ],
+    "note": "Préservation arcade ; versions des jeux à faire correspondre.",
+    "integration": ""
+  },
+  {
+    "id": "retroarch",
+    "name": "RetroArch",
+    "platforms": [
+      "Multiconsole"
+    ],
+    "url": "https://www.retroarch.com/",
+    "executables": [
+      "retroarch"
+    ],
+    "flatpaks": [
+      "org.libretro.RetroArch"
+    ],
+    "note": "Interface pour cœurs libretro ; un cœur doit être installé.",
+    "integration": ""
+  }
+]

@@ -74,12 +74,12 @@ def test_switch_library_uses_console_settings(window, tmp_path):
 
 def test_voir_les_editions_declenche_la_recherche(window, qtbot):
     """Régression : clicked(bool) ne doit pas écraser le titre du lambda."""
-    window.sidebar.setCurrentRow(2)  # Recommandés → cartes rendues
+    window.navigate("recommended")  # Recommandés → cartes rendues
     assert window.tab_recommended.grid.cards
     card = window.tab_recommended.grid.cards[0]
     with patch.object(window.search, "search", return_value=SearchResult()) as mock:
         card.button.click()
-        assert window.sidebar.currentRow() == 1
+        assert window.sidebar.currentRow() == window.routes["search"]
         expected = card.base_title
         assert window.tab_search.query.text() == expected
         qtbot.waitUntil(lambda: mock.called, timeout=2000)  # recherche en worker
@@ -89,8 +89,8 @@ def test_voir_les_editions_declenche_la_recherche(window, qtbot):
 def test_support_page_links(window):
     from PySide6.QtWidgets import QPushButton
 
-    assert window.sidebar.count() == 7
-    window.sidebar.setCurrentRow(6)
+    assert window.sidebar.count() == 10
+    window.navigate("support")
     buttons = [b.text() for b in window.tab_support.findChildren(QPushButton)]
     assert any("PCSX2" in b for b in buttons)
     assert any("Ryubing" in b for b in buttons)
@@ -99,8 +99,8 @@ def test_support_page_links(window):
 
 
 def test_tabs_and_responsive_grid(window, qtbot):
-    assert window.sidebar.count() == 7
-    window.sidebar.setCurrentRow(2)
+    assert window.sidebar.count() == 10
+    window.navigate("recommended")
     assert len(window.tab_recommended.grid.cards) == 20
     window.resize(800, 600)
     qtbot.wait(100)
@@ -268,14 +268,14 @@ def test_local_details_prefers_chd_and_enables_conversion_for_source_only(window
 def test_platform_navigation_and_search_state_are_isolated(window):
     window.tab_search.query.setText("Gran Turismo")
     window.select_console(1)
-    assert window.sidebar.item(3).text() == "Top Switch"
+    assert window.sidebar.item(window.routes["top"]).text() == "Top Switch"
     assert "SWITCH" in window.tab_search.header.eyebrow.text()
-    window.sidebar.setCurrentRow(3)
+    window.navigate("top")
     assert window.tab_top.grid.cards
     assert not any("Gran Turismo" in c.base_title for c in window.tab_top.grid.cards)
     window.tab_search.query.setText("Mario")
     window.select_console(0)
-    assert window.sidebar.item(3).text() == "Top PS2"
+    assert window.sidebar.item(window.routes["top"]).text() == "Top PS2"
     assert window.tab_search.query.text() == "Gran Turismo"
     window.select_console(1)
     assert window.tab_search.query.text() == "Mario"
@@ -339,3 +339,43 @@ def test_settings_save_generic_roundtrip(window, tmp_path):
     page.values["switch_directory"].setText(str(tmp_path / "absent"))
     page.save()
     assert window.config.switch_dir == switch_roms
+
+
+def test_named_routes_preserve_actions_after_menu_reorder(window):
+    for key in ("collections", "emulators", "tools", "settings", "downloads", "support"):
+        window.navigate(key)
+        assert window.pages.currentWidget() is getattr(window, "tab_" + key)
+    window.focus_search()
+    assert window.pages.currentWidget() is window.tab_search
+    window.show_downloads()
+    assert window.pages.currentWidget() is window.tab_downloads
+    window.select_console(1)
+    window.navigate("tools")
+    assert not window.tab_tools.convert.isEnabled()
+    window.select_console(0)
+    assert window.tab_tools.convert.isEnabled()
+
+
+def test_collections_never_mix_console_games(window):
+    from cochwa.services.library import scan
+
+    window.tab_library.games = scan(window.config.ps2_dir)
+    page = window.tab_collections
+    page.store.save("PS2 favoris", "ps2", ["Game"])
+    page.store.save("Switch favoris", "switch", ["Mario"])
+    window.navigate("collections")
+    assert page.choice.currentText() == "PS2 favoris"
+    assert len(page.grid.cards) == 1
+    window.select_console(1)
+    assert page.choice.currentText() == "Switch favoris"
+    assert not page.grid.cards
+
+
+def test_emulators_filter_across_consoles_without_switching_library(window):
+    window.navigate("emulators")
+    page = window.tab_emulators
+    page.platform.setCurrentText("GameCube")
+    assert "1 projets" in page.status.text()
+    assert window.console.id == "ps2"
+    page.query.setText("no matching emulator")
+    assert "0 projets" in page.status.text()

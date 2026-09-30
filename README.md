@@ -111,3 +111,15 @@ tools/                 # contrôles manuels ciblés
 ```
 
 Voir [l'architecture](docs/ARCHITECTURE.md), [la migration 0.1 → 0.2](docs/MIGRATION.md) et [le suivi de l'audit](docs/AUDIT_STATUS.md). Pour reprendre avec une IA, lire d'abord [CURRENT_STATE.md](CURRENT_STATE.md) : il évite de recharger l'historique entier.
+
+### Collections et émulateurs
+
+La barre latérale propose **Collections**, **Émulateurs** et **Outils**. Créez des
+collections par console et sélectionnez leurs jeux sans déplacer les ROMs.
+Dans Émulateurs, filtrez les 22 projets par console, consultez leur site officiel
+ou choisissez un exécutable installé (y compris AppImage). Cochwa mémorise ce
+chemin et propose l’ouverture depuis **Prêt à jouer** dans la bibliothèque.
+Les binaires accessibles dans le PATH et les déploiements Flatpak usuels sont détectés.
+Les lanceurs PS2/Switch existants restent en place ; leur réglage reste accessible
+depuis la fiche de l’émulateur. Le catalogue couvre d’autres consoles, tandis que
+la gestion intégrée des ROMs reste PS2/Switch. [Catalogue et limites](docs/EMULATORS.md).
