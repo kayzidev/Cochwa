@@ -37,6 +37,87 @@ def clean_rom_title(name: str) -> str:
     return cleaned.strip() or name
 
 
+_DUMP_BRACKET = re.compile(
+    r"(?:[0-9a-f]{16}|[A-Z]{2,5}[-_ ]?\d{3,}|v\d+(?:\.\d+)*|"
+    r"PS\d|PSX|SWITCH|NSW|BASE|UPD|UPDATE|DLC|"
+    r"USA|US|EUR|EU|JPN|JP|WORLD|ASIA|"
+    r"REV(?:ISION)?[ ._-]*[A-Z0-9]+|DISC[ ._-]*\d+(?:[ ._-]*OF[ ._-]*\d+)?|"
+    r"[A-Z](?:-[A-Z]){2,}|[A-Za-z0-9-]+\.(?:com|net|org|xyz|ws))",
+    re.I,
+)
+_REGION_WORDS = {
+    "usa",
+    "united states",
+    "europe",
+    "australia",
+    "japan",
+    "world",
+    "asia",
+    "korea",
+    "france",
+    "germany",
+    "italy",
+    "spain",
+    "uk",
+}
+_LANGUAGE_CODES = {
+    "en",
+    "fr",
+    "de",
+    "es",
+    "it",
+    "pt",
+    "ja",
+    "jp",
+    "ko",
+    "zh",
+    "nl",
+    "ru",
+    "pl",
+    "sv",
+    "no",
+    "da",
+    "fi",
+    "tr",
+    "cs",
+    "hu",
+}
+
+
+def _language_tag(value: str) -> bool:
+    parts = [part.strip().casefold() for part in value.split(",")]
+    return bool(parts) and all(part in _LANGUAGE_CODES for part in parts)
+
+
+def artwork_search_title(name: str) -> str:
+    """Titre commun de recherche d'images, sans métadonnées de dump.
+
+    Préserve les éditions et les années significatives, indépendamment de la
+    console ; les noms de fichiers et les titres affichés restent distincts.
+    """
+
+    def square(match):
+        value = match.group(1).strip()
+        return "" if _DUMP_BRACKET.fullmatch(value) or _language_tag(value) else match.group(0)
+
+    def round_bracket(match):
+        value = match.group(1).strip()
+        lower = value.casefold()
+        regions = {part.strip() for part in lower.split(",")}
+        languages = _language_tag(value)
+        disc = re.fullmatch(r"(?:disc|disk|cd)[ ._-]*\d+(?:[ ._-]*of[ ._-]*\d+)?", value, re.I)
+        revision = re.fullmatch(r"(?:rev(?:ision)?|rerelease)[ ._-]*[A-Z0-9]*", value, re.I)
+        domain = re.search(r"\b[\w-]+\.(?:com|net|org|xyz|ws)\b", lower)
+        if regions <= _REGION_WORDS or languages or disc or revision or domain:
+            return ""
+        return match.group(0)
+
+    cleaned = re.sub(r"\s*\[([^\]]*)\]", square, name.strip())
+    cleaned = re.sub(r"\s*\(([^()]*)\)", round_bracket, cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" -_")
+    return cleaned or name.strip()
+
+
 def human_size(num_bytes: int) -> str:
     """Convertit un nombre d'octets en taille lisible."""
     size = float(num_bytes)

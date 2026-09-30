@@ -9,9 +9,13 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import shutil
+import signal
 import subprocess
 import sys
+import tempfile
+import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -19,7 +23,8 @@ from pathlib import Path
 from cochwa.consoles import CONSOLES
 from cochwa.infrastructure.storage import atomic_write, file_lock
 from cochwa.services.library import scan
-from cochwa.util import switch_content_type
+from cochwa.services.steam_shortcuts import read_shortcuts
+from cochwa.util import artwork_search_title, switch_content_type
 
 
 def detect_srm_directory():
@@ -72,6 +77,94 @@ def ensure_srm_closed():
         raise RuntimeError("Fermez Steam ROM Manager puis réessayez.")
 
 
+_STEAM_ID64_BASE = 76561197960265728
+_LOGINUSERS_BLOCK = re.compile(r'"(\d{17})"\s*\{([^{}]*)\}')
+_ACCOUNT_NAME = re.compile(r'"AccountName"\s+"([^"]*)"')
+
+
+def _steam_account_names(steam_directory):
+    """Noms de comptes Steam, comme getAvailableLogins de SRM.
+
+    AccountName depuis loginusers.vdf, puis les dossiers userdata numériques
+    inconnus (nom = identifiant du dossier).
+    """
+    steam_directory = Path(steam_directory)
+    names, known_ids = [], set()
+    try:
+        text = (steam_directory / "config" / "loginusers.vdf").read_text(
+            encoding="utf-8", errors="replace"
+        )
+    except OSError:
+        text = ""
+    for steam_id64, block in _LOGINUSERS_BLOCK.findall(text):
+        match = _ACCOUNT_NAME.search(block)
+        if match:
+            names.append(match.group(1))
+            known_ids.add(str(int(steam_id64) - _STEAM_ID64_BASE))
+    try:
+        extras = sorted(
+            entry.name
+            for entry in (steam_directory / "userdata").iterdir()
+            if entry.is_dir()
+            and entry.name.isdigit()
+            and entry.name != "0"
+            and entry.name not in known_ids
+        )
+    except OSError:
+        extras = []
+    return names + extras
+
+
+def ensure_srm_cli_ready(directory, steam_directory):
+    """Évite que SRM bloque son CLI sur l'assistant de première configuration.
+
+    Sans compte déclaré dans userSettings.json, SRM affiche son splash
+    (choose-accounts) à la place du router : la commande CLI ne termine
+    jamais (bug upstream SteamGridDB/steam-rom-manager#710). De plus, le
+    filtre "Global" des parseurs utilise ces comptes : vide, rien ne serait
+    écrit dans Steam. On renseigne donc steamDirectory et userAccounts
+    uniquement lorsqu'ils sont absents.
+    """
+    directory = Path(directory)
+    settings_path = directory / "userSettings.json"
+    if settings_path.exists():
+        try:
+            settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as error:
+            raise RuntimeError(
+                "userSettings.json de SRM est illisible. Ouvrez SRM une fois "
+                "pour le régénérer, puis relancez la synchronisation."
+            ) from error
+        if not isinstance(settings, dict) or not isinstance(
+            settings.get("environmentVariables", {}), dict
+        ):
+            raise RuntimeError(
+                "userSettings.json de SRM a un format inattendu. Ouvrez SRM une "
+                "fois pour le régénérer, puis relancez la synchronisation."
+            )
+    else:
+        settings = {"version": 11}
+    env = settings.setdefault("environmentVariables", {})
+    changed = False
+    if not env.get("steamDirectory"):
+        env["steamDirectory"] = str(steam_directory)
+        changed = True
+    if not env.get("userAccounts"):
+        names = _steam_account_names(steam_directory)
+        if not names:
+            raise RuntimeError(
+                "Aucun compte Steam détecté. Ouvrez SRM une fois et terminez "
+                "son assistant de configuration, puis relancez la synchronisation."
+            )
+        env["userAccounts"] = names
+        changed = True
+    if changed:
+        if settings_path.exists():
+            backup = directory / f"userSettings.cochwa-backup-{uuid.uuid4().hex[:12]}.json"
+            atomic_write(backup, settings_path.read_bytes())
+        atomic_write(settings_path, _json(settings))
+
+
 def _digest(data):
     return hashlib.sha256(data).hexdigest()
 
@@ -109,7 +202,17 @@ def _preset(console, manifest_dir, steam_dir):
         "imagePool": "${fuzzyTitle}",
         "onlineImageQueries": ["${fuzzyTitle}"],
         "imageProviders": ["sgdb"],
-        "imageProviderAPIs": {},
+        "imageProviderAPIs": {
+            "sgdb": {
+                "nsfw": False,
+                "humor": False,
+                "imageMotionTypes": ["static"],
+                "styles": [],
+                "stylesHero": [],
+                "stylesLogo": [],
+                "stylesIcon": [],
+            }
+        },
         "userAccounts": {"specifiedAccounts": ["Global"]},
         "titleFromVariable": {
             "limitToGroups": [],
@@ -136,12 +239,30 @@ def _preset(console, manifest_dir, steam_dir):
 @dataclass
 class SRMPlan:
     directory: Path
+    steam_directory: Path
     original_digest: str
     configurations: list
     manifests: dict
     summaries: list[str]
     overlaps: list[str]
     overlap_ids: list[str]
+
+
+@dataclass(frozen=True)
+class SRMSyncResult:
+    expected: int
+    added: int
+    artwork: int
+
+    @property
+    def message(self):
+        noun = "jeu" if self.expected == 1 else "jeux"
+        prefix = f"Synchronisation vérifiée : {self.expected} {noun} Cochwa dans Steam"
+        if self.added:
+            prefix += f" · {self.added} ajouté(s)"
+        else:
+            prefix += " · déjà présents"
+        return f"{prefix} · jaquettes détectées : {self.artwork}/{self.expected}. Rouvrez Steam."
 
 
 def prepare(config, directory, steam_dir, console_ids):
@@ -208,7 +329,7 @@ def prepare(config, directory, steam_dir, console_ids):
                 seen.add(selected.resolve())
                 entries.append(
                     {
-                        "title": game.title,
+                        "title": artwork_search_title(game.title),
                         "target": str(launcher.resolve()),
                         "startIn": str(launcher.resolve().parent),
                         "launchOptions": _quote_arg(selected.resolve()),
@@ -233,7 +354,14 @@ def prepare(config, directory, steam_dir, console_ids):
                     if parser.get("parserId"):
                         overlap_ids.append(parser["parserId"])
     return SRMPlan(
-        directory, _digest(original), configurations, manifests, summaries, overlaps, overlap_ids
+        directory,
+        steam_dir,
+        _digest(original),
+        configurations,
+        manifests,
+        summaries,
+        overlaps,
+        overlap_ids,
     )
 
 
@@ -258,20 +386,146 @@ def install(plan, disable_overlaps=False):
     return backup
 
 
-def synchronize(config):
-    """Commande officielle SRM add ; tous les parseurs activés participent."""
+def _expected_shortcuts(plan):
+    expected = {}
+    for games in plan.manifests.values():
+        for game in games:
+            expected[(game["target"], game["launchOptions"])] = game["title"]
+    return expected
+
+
+def _check_installed_plan(plan):
+    detected = detect_srm_directory()
+    if detected is None or detected.resolve() != plan.directory.resolve():
+        raise RuntimeError(
+            "Le dossier SRM installé diffère de l’aperçu. Réinstallez les préréglages."
+        )
+    try:
+        configurations = json.loads((plan.directory / "userConfigurations.json").read_text())
+        if not isinstance(configurations, list) or not all(
+            isinstance(parser, dict) for parser in configurations
+        ):
+            raise ValueError("Configurations invalides")
+        for manifest_path, games in plan.manifests.items():
+            parser_id = f"cochwa-{manifest_path.parent.name}"
+            parser = next(c for c in configurations if c.get("parserId") == parser_id)
+            if parser.get("disabled") or parser.get("parserInputs", {}).get(
+                "manualManifests"
+            ) != str(manifest_path.parent):
+                raise ValueError("Parseur modifié")
+            if json.loads(manifest_path.read_text()) != games:
+                raise ValueError("Manifeste modifié")
+    except (OSError, ValueError, KeyError, StopIteration, TypeError, AttributeError) as error:
+        raise RuntimeError(
+            "Les préréglages SRM ont changé depuis l’aperçu. Préparez et installez-les à nouveau."
+        ) from error
+
+
+def _steam_snapshot(steam_directory, expected):
+    found = {}
+    userdata = steam_directory / "userdata"
+    for path in userdata.glob("*/config/shortcuts.vdf"):
+        try:
+            shortcuts = read_shortcuts(path)
+        except ValueError as error:
+            raise RuntimeError(f"Vérification Steam impossible : {error}") from error
+        for shortcut in shortcuts:
+            exe = str(shortcut.get("exe", "")).strip().strip('"')
+            key = (exe, str(shortcut.get("LaunchOptions", "")))
+            if key in expected:
+                found.setdefault(key, []).append((path.parent / "grid", shortcut.get("appid")))
+    return found
+
+
+def _artwork_count(found):
+    count = 0
+    for locations in found.values():
+        for grid, appid in locations:
+            if isinstance(appid, int) and any(
+                path.is_file()
+                for stem in (str(appid), f"{appid}p")
+                for path in grid.glob(f"{stem}.*")
+                if path.stem == stem
+            ):
+                count += 1
+                break
+    return count
+
+
+def _stop_process(process):
+    """Arrête seulement la commande lancée par Cochwa et ses enfants."""
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        process.terminate()
+    else:
+        os.killpg(process.pid, signal.SIGTERM)
+    try:
+        process.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            process.kill()
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
+        process.wait(timeout=5)
+
+
+def _run_srm_add(command, cancel_event=None, timeout=900):
+    started = time.monotonic()
+    # ELECTRON_RUN_AS_NODE fuit depuis les terminaux d'applications Electron
+    # (VS Code, Cursor…) : SRM démarrerait en mode Node et échouerait aussitôt.
+    env = {key: value for key, value in os.environ.items() if key != "ELECTRON_RUN_AS_NODE"}
+    with tempfile.TemporaryFile(mode="w+t", encoding="utf-8", errors="replace") as output:
+        options = {"start_new_session": True} if os.name != "nt" else {}
+        process = subprocess.Popen(
+            command, stdout=output, stderr=subprocess.STDOUT, env=env, **options
+        )
+        try:
+            while True:
+                if cancel_event is not None and cancel_event.is_set():
+                    raise RuntimeError("Synchronisation SRM annulée.")
+                if time.monotonic() - started >= timeout:
+                    raise RuntimeError(
+                        "SRM n’a pas terminé dans les 15 minutes. Vérifiez son état avant de relancer."
+                    )
+                try:
+                    code = process.wait(timeout=0.5)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+        except BaseException:
+            _stop_process(process)
+            raise
+        if code:
+            output.seek(0)
+            details = output.read()[-1200:].strip()
+            raise RuntimeError("SRM n’a pas terminé la synchronisation : " + (details or str(code)))
+
+
+def synchronize(config, plan, cancel_event=None):
+    """Exécute SRM add et vérifie les raccourcis réellement écrits dans Steam."""
     ensure_srm_closed()
     if process_running("steam"):
         raise RuntimeError("Fermez Steam manuellement, puis relancez la synchronisation.")
+    _check_installed_plan(plan)
+    expected = _expected_shortcuts(plan)
+    if not expected:
+        raise RuntimeError("L’aperçu ne contient aucun jeu à synchroniser.")
+    ensure_srm_cli_ready(plan.directory, plan.steam_directory)
+    before = _steam_snapshot(plan.steam_directory, expected)
     executable = shutil.which("steam-rom-manager")
     command = [executable, "add"] if executable else ["flatpak", "run", config.srm_flatpak, "add"]
     if not executable and not shutil.which("flatpak"):
         raise RuntimeError(
             "Steam ROM Manager introuvable : installez SRM ou utilisez l’export des préréglages."
         )
-    result = subprocess.run(command, capture_output=True, text=True, timeout=300, check=False)
-    if result.returncode:
+    _run_srm_add(command, cancel_event)
+    after = _steam_snapshot(plan.steam_directory, expected)
+    missing = [title for key, title in expected.items() if key not in after]
+    if missing:
+        sample = ", ".join(missing[:3])
         raise RuntimeError(
-            "SRM n’a pas terminé la synchronisation : " + (result.stderr or result.stdout)[-1200:]
+            f"SRM s’est terminé sans erreur, mais {len(missing)}/{len(expected)} jeux Cochwa "
+            f"sont absents de Steam ({sample}). Vérifiez l’aperçu dans SRM."
         )
-    return "Synchronisation SRM terminée. Vous pouvez rouvrir Steam."
+    return SRMSyncResult(len(expected), len(after.keys() - before.keys()), _artwork_count(after))
