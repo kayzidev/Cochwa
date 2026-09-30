@@ -135,7 +135,7 @@ class CatalogTests(unittest.TestCase):
         first = [e["title"] for e in recommended_entries(day="20260927")]
         second = [e["title"] for e in recommended_entries(day="20260927")]
         self.assertEqual(first, second)
-        self.assertLessEqual(len(first), 20)
+        self.assertLessEqual(len(first), 30)
         # Un autre jour donne une autre sélection.
         other = [e["title"] for e in recommended_entries(day="20260928")]
         self.assertNotEqual(first, other)

@@ -254,7 +254,16 @@ class MaintenanceTests(unittest.TestCase):
         old_neg = self._write("covers/b.missing.json", {"at": now - NEGATIVE_TTL - 10})
         cover = self._write("covers/keep.png", {})  # jaquette positive : permanente
         result = purge_expired_caches(self.root, now=now)
-        self.assertEqual(result, {"metadata": 2, "negative_covers": 1})
+        self.assertEqual(
+            result,
+            {
+                "metadata": 2,
+                "ia_cover_metadata": 0,
+                "igdb_metadata": 0,
+                "catalogs": 0,
+                "negative_covers": 1,
+            },
+        )
         self.assertTrue(fresh_meta.exists())
         self.assertFalse(old_meta.exists())
         self.assertFalse(corrupt.exists())
@@ -265,7 +274,16 @@ class MaintenanceTests(unittest.TestCase):
     def test_purge_quietly_never_raises(self):
         from cochwa.services.maintenance import purge_quietly
 
-        self.assertEqual(purge_quietly(self.root / "absent"), {"metadata": 0, "negative_covers": 0})
+        self.assertEqual(
+            purge_quietly(self.root / "absent"),
+            {
+                "metadata": 0,
+                "ia_cover_metadata": 0,
+                "igdb_metadata": 0,
+                "catalogs": 0,
+                "negative_covers": 0,
+            },
+        )
 
 
 class IncrementalScanTests(unittest.TestCase):

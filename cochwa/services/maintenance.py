@@ -1,4 +1,4 @@
-"""Purge bornée des caches : metadata IA expirées et marqueurs négatifs SGDB.
+"""Purge bornée et spécifique aux sources des caches.
 
 Les jaquettes positives (covers/<hash>.png) restent permanentes — choix de
 design : une jaquette n'est jamais re-téléchargée. Appelé au démarrage de la
@@ -12,13 +12,16 @@ import time
 from pathlib import Path
 
 from cochwa.api.steamgriddb import NEGATIVE_TTL
+from cochwa.services.igdb import CATALOG_TTL
+from cochwa.services.igdb import METADATA_TTL as IGDB_TTL
+from cochwa.services.igdb import NEGATIVE_TTL as IGDB_NEGATIVE_TTL
 
-# TTL maximal des réponses IA mises en cache (metadata 1 h, recherches 5 min) :
-# un fichier plus vieux que ce seuil est expiré pour tous les appelants.
+# Les fichiers hashés non préfixés viennent du provider IA (TTL d'appel 1 h).
 METADATA_TTL = 3600
+IA_COVER_METADATA_TTL = 24 * 60 * 60
 
 
-def _purge(directory, pattern, timestamp_key, ttl, now):
+def _purge(directory, pattern, timestamp_key, ttl, now, *, excluded_prefixes=(), negative_ttl=None):
     """Supprime les fichiers JSON de `directory` plus vieux que `ttl` (ou illisibles)."""
     removed = 0
     if not directory.is_dir():
@@ -26,9 +29,13 @@ def _purge(directory, pattern, timestamp_key, ttl, now):
     for path in directory.glob(pattern):
         if not path.is_file():
             continue
+        if path.name.startswith(excluded_prefixes):
+            continue
         try:
-            stamp = float(json.loads(path.read_text())[timestamp_key])
-            expired = now - stamp >= ttl
+            data = json.loads(path.read_text())
+            stamp = float(data[timestamp_key])
+            effective_ttl = negative_ttl if negative_ttl and not data.get("data") else ttl
+            expired = now - stamp >= effective_ttl
         except (OSError, ValueError, KeyError, TypeError):
             expired = True  # fichier illisible : inutilisable, on purge
         if not expired:
@@ -46,7 +53,26 @@ def purge_expired_caches(cache_dir, now=None):
     now = time.time() if now is None else now
     cache_dir = Path(cache_dir)
     return {
-        "metadata": _purge(cache_dir / "metadata", "*.json", "time", METADATA_TTL, now),
+        "metadata": _purge(
+            cache_dir / "metadata",
+            "*.json",
+            "time",
+            METADATA_TTL,
+            now,
+            excluded_prefixes=("ia-", "igdb-"),
+        ),
+        "ia_cover_metadata": _purge(
+            cache_dir / "metadata", "ia-*.json", "time", IA_COVER_METADATA_TTL, now
+        ),
+        "igdb_metadata": _purge(
+            cache_dir / "metadata",
+            "igdb-*.json",
+            "time",
+            IGDB_TTL,
+            now,
+            negative_ttl=IGDB_NEGATIVE_TTL,
+        ),
+        "catalogs": _purge(cache_dir / "catalogs", "igdb-*.json", "time", CATALOG_TTL, now),
         "negative_covers": _purge(cache_dir / "covers", "*.missing.json", "at", NEGATIVE_TTL, now),
     }
 

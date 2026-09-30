@@ -6,6 +6,8 @@ widgets ; les résultats arrivent par connexions en file (thread GUI).
 
 from __future__ import annotations
 
+import time
+
 from PySide6.QtCore import QObject, QThreadPool, Signal
 
 
@@ -163,3 +165,85 @@ class GameMetadataService(QObject):
         self.worker.submit(
             lambda: self.client.enrich(title, platform), deliver, lambda _: deliver(None)
         )
+
+
+class GameCatalogService(QObject):
+    """Synchronise les catalogues complets IGDB hors du thread graphique."""
+
+    updated = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, config, consoles, parent=None):
+        super().__init__(parent)
+        from cochwa.services.igdb import IGDBClient
+
+        self.config = config
+        self.consoles = consoles
+        self.client = IGDBClient(config)
+        self.worker = Worker(self, threads=1)
+        self.busy = False
+
+    @property
+    def configured(self):
+        return self.client.configured
+
+    def configure(self, client_id, client_secret):
+        self.client.configure(client_id, client_secret)
+
+    def refresh_all(self, consoles=None):
+        if self.busy:
+            return False
+        if not self.configured:
+            self.failed.emit("Configurez Twitch Client ID et Client Secret dans Paramètres.")
+            return False
+        self.busy = True
+        requested = set(consoles) if consoles is not None else None
+        enabled = [
+            console
+            for console in self.consoles
+            if console.enabled and (requested is None or console.id in requested)
+        ]
+
+        def work():
+            result = {"updated": {}, "errors": {}}
+            for console in enabled:
+                try:
+                    self.client.sync_catalog(console.id, console.name)
+                    result["updated"][console.id] = True
+                except Exception as exc:
+                    result["errors"][console.id] = f"{type(exc).__name__}: {exc}"
+            return result
+
+        def done(result):
+            self.busy = False
+            from cochwa.catalog import clear_catalog_cache
+
+            clear_catalog_cache()
+            self.updated.emit(result)
+
+        def fail(message):
+            self.busy = False
+            self.failed.emit(message)
+
+        self.worker.submit(work, done, fail)
+        return True
+
+    def refresh_if_stale(self):
+        from cochwa.services.igdb import CATALOG_TTL
+
+        if not self.configured or self.busy:
+            return False
+        now = time.time()
+        stale = []
+        for console in self.consoles:
+            if not console.enabled:
+                continue
+            path = self.config.cache_dir / "catalogs" / f"igdb-{console.id}.json"
+            try:
+                saved = path.stat().st_mtime
+            except OSError:
+                stale.append(console.id)
+                continue
+            if now - saved >= CATALOG_TTL:
+                stale.append(console.id)
+        return self.refresh_all(stale) if stale else False

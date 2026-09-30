@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -123,6 +125,24 @@ class SettingsPage(QWidget):
             "Facultatif · créer une application Twitch"
         )
         self.values["igdb_client_secret"].setPlaceholderText("Facultatif")
+        igdb_actions = QHBoxLayout()
+        twitch = QPushButton("Créer une application Twitch")
+        twitch.clicked.connect(
+            lambda: QDesktopServices.openUrl(QUrl("https://dev.twitch.tv/console/apps"))
+        )
+        igdb_actions.addWidget(twitch)
+        self.refresh_catalog_button = QPushButton("Actualiser les catalogues IGDB")
+        self.refresh_catalog_button.setObjectName("primary")
+        self.refresh_catalog_button.setEnabled(self.app.catalogs.configured)
+        self.refresh_catalog_button.clicked.connect(self.refresh_catalogs)
+        igdb_actions.addWidget(self.refresh_catalog_button)
+        box.addLayout(igdb_actions)
+        self.catalog_status = QLabel("Les catalogues se mettent à jour en arrière-plan.")
+        self.catalog_status.setObjectName("muted")
+        self.catalog_status.setWordWrap(True)
+        box.addWidget(self.catalog_status)
+        self.app.catalogs.updated.connect(self._catalog_updated)
+        self.app.catalogs.failed.connect(self._catalog_failed)
         content.addWidget(panel)
 
         panel, box = section(
@@ -292,11 +312,18 @@ class SettingsPage(QWidget):
             config.igdb_client_secret = self.values["igdb_client_secret"].text().strip()
             config.save()
             self.app.metadata.configure(config.igdb_client_id, config.igdb_client_secret)
+            self.app.catalogs.configure(config.igdb_client_id, config.igdb_client_secret)
+            self.refresh_catalog_button.setEnabled(self.app.catalogs.configured)
             self.app.tab_library.ready.refresh()
             self.app.covers.results.clear()
             self.app.tab_library.refresh()
             self.save_status.setText("✓ Paramètres enregistrés")
             self.app.notify("Paramètres enregistrés", "success")
+            if self.app.catalogs.configured:
+                if self.app.catalogs.refresh_if_stale():
+                    self.catalog_status.setText("Mise à jour IGDB en arrière-plan…")
+                else:
+                    self.catalog_status.setText("Le catalogue IGDB local est à jour.")
         except Exception as exc:
             (
                 config.console_dirs,
@@ -307,7 +334,33 @@ class SettingsPage(QWidget):
                 config.igdb_client_secret,
             ) = previous
             self.app.metadata.configure(config.igdb_client_id, config.igdb_client_secret)
+            self.app.catalogs.configure(config.igdb_client_id, config.igdb_client_secret)
             self.app.error(str(exc))
+
+    def refresh_catalogs(self):
+        self.catalog_status.setText("Mise à jour IGDB en arrière-plan…")
+        if self.app.catalogs.refresh_all():
+            self.refresh_catalog_button.setEnabled(False)
+        else:
+            if not self.app.catalogs.configured:
+                self.catalog_status.setText(
+                    "Renseignez puis enregistrez les identifiants Twitch pour activer IGDB."
+                )
+
+    def _catalog_updated(self, result):
+        self.refresh_catalog_button.setEnabled(self.app.catalogs.configured)
+        errors = result.get("errors", {})
+        if errors:
+            platforms = ", ".join(errors)
+            self.catalog_status.setText(
+                "Catalogues actualisés partiellement ; vérifier la plateforme : " + platforms
+            )
+        else:
+            self.catalog_status.setText("✓ Catalogues IGDB actualisés.")
+
+    def _catalog_failed(self, message):
+        self.refresh_catalog_button.setEnabled(self.app.catalogs.configured)
+        self.catalog_status.setText("Échec de la mise à jour : " + message)
 
     def open_srm(self):
         from cochwa.steam import trigger_srm_reparse

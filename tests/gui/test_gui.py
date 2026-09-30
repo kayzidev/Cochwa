@@ -101,7 +101,7 @@ def test_support_page_links(window):
 def test_tabs_and_responsive_grid(window, qtbot):
     assert window.sidebar.count() == 10
     window.navigate("recommended")
-    assert len(window.tab_recommended.grid.cards) == 20
+    assert len(window.tab_recommended.grid.cards) == 30
     window.resize(800, 600)
     qtbot.wait(100)
     small = window.tab_recommended.grid.columns

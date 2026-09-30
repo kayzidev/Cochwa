@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
 import time
 from datetime import UTC, datetime
 from difflib import SequenceMatcher
@@ -15,8 +16,13 @@ from cochwa.services.relevance import normalized
 
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 API_URL = "https://api.igdb.com/v4/games"
+API_ROOT = "https://api.igdb.com/v4"
 METADATA_TTL = 30 * 24 * 60 * 60
 NEGATIVE_TTL = 24 * 60 * 60
+CATALOG_TTL = 30 * 24 * 60 * 60
+_REQUEST_LOCK = threading.Lock()
+_TOKEN_LOCK = threading.Lock()
+_NEXT_API_REQUEST = 0.0
 
 _FIELDS = ",".join(
     (
@@ -45,6 +51,7 @@ _FIELDS = ",".join(
         "age_ratings.rating_category.rating",
         "total_rating",
         "total_rating_count",
+        "hypes",
         "aggregated_rating",
         "aggregated_rating_count",
         "cover.image_id",
@@ -160,35 +167,111 @@ class IGDBClient:
     def _access_token(self):
         if self._token and time.time() < self._token_expiry:
             return self._token
-        response = session().post(
-            TOKEN_URL,
-            data={
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-                "grant_type": "client_credentials",
-            },
-            timeout=(10, 20),
-        )
-        response.raise_for_status()
-        payload = response.json()
-        self._token = payload["access_token"]
-        self._token_expiry = time.time() + max(60, int(payload.get("expires_in", 3600)) - 60)
-        return self._token
+        with _TOKEN_LOCK:
+            if self._token and time.time() < self._token_expiry:
+                return self._token
+            response = session().post(
+                TOKEN_URL,
+                data={
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                    "grant_type": "client_credentials",
+                },
+                timeout=(10, 20),
+            )
+            response.raise_for_status()
+            payload = response.json()
+            self._token = payload["access_token"]
+            self._token_expiry = time.time() + max(60, int(payload.get("expires_in", 3600)) - 60)
+            return self._token
 
-    def _query(self, body):
-        response = session().post(
-            API_URL,
-            data=body,
-            headers={
-                "Client-ID": self.client_id,
-                "Authorization": f"Bearer {self._access_token()}",
-                "Accept": "application/json",
-                "Content-Type": "text/plain",
-            },
-            timeout=(10, 25),
-        )
+    def _query(self, body, endpoint="games"):
+        global _NEXT_API_REQUEST
+        with _REQUEST_LOCK:
+            for attempt in range(3):
+                delay = _NEXT_API_REQUEST - time.monotonic()
+                if delay > 0:
+                    time.sleep(delay)
+                response = session().post(
+                    f"{API_ROOT}/{endpoint}",
+                    data=body,
+                    headers={
+                        "Client-ID": self.client_id,
+                        "Authorization": f"Bearer {self._access_token()}",
+                        "Accept": "application/json",
+                        "Content-Type": "text/plain",
+                    },
+                    timeout=(10, 25),
+                )
+                retry_after = response.headers.get("Retry-After", "")
+                if response.status_code in {429, 500, 502, 503, 504} and attempt < 2:
+                    try:
+                        backoff = max(0.26, min(30.0, float(retry_after)))
+                    except ValueError:
+                        backoff = 0.5 * (2**attempt)
+                    _NEXT_API_REQUEST = time.monotonic() + backoff
+                    continue
+                _NEXT_API_REQUEST = time.monotonic() + 0.26
+                break
         response.raise_for_status()
         return response.json()
+
+    def _platform_id(self, platform, platform_name=None):
+        aliases = {
+            "ps2": ("PlayStation 2", "PS2"),
+            "switch": ("Nintendo Switch", "Switch"),
+        }.get(platform, (platform_name or platform,))
+        candidates = {}
+        for alias in aliases:
+            query = alias.replace("\\", "\\\\").replace('"', '\\"')
+            for item in self._query(
+                f'fields id,name,alternative_name,slug; search "{query}"; limit 20;',
+                endpoint="platforms",
+            ):
+                candidates[item.get("id")] = item
+            for item in candidates.values():
+                names = [item.get("name", ""), item.get("alternative_name", "")]
+                if any(normalized(name) == normalized(alias) for name in names):
+                    return item["id"]
+        if platform_name:
+            for item in candidates.values():
+                if normalized(item.get("name", "")) == normalized(platform_name):
+                    return item["id"]
+        raise ValueError(f"Plateforme IGDB introuvable : {platform_name or platform}")
+
+    def fetch_platform_catalog(self, platform, platform_name=None):
+        """Charge le catalogue principal d'une plateforme par pages de 500 jeux."""
+        if not self.configured:
+            raise ValueError("Configurez les identifiants Twitch/IGDB dans Paramètres.")
+        platform_id = self._platform_id(platform, platform_name)
+        rows = []
+        last_id = 0
+        fields = (
+            "id,name,slug,summary,storyline,first_release_date,game_type.name,"
+            "genres.name,platforms.name,total_rating,total_rating_count,"
+            "aggregated_rating,aggregated_rating_count,hypes,cover.image_id,websites.url"
+        )
+        while True:
+            body = (
+                f"fields {fields}; where platforms = {platform_id} & version_parent = null "
+                f"& game_type = 0 & id > {last_id}; sort id asc; limit 500;"
+            )
+            page = self._query(body)
+            if not page:
+                break
+            rows.extend(entry for game in page if (entry := _catalog_entry(game)))
+            last_id = page[-1]["id"]
+            if len(page) < 500:
+                break
+        return rows
+
+    def sync_catalog(self, platform, platform_name=None):
+        """Rafraîchit le cache de catalogue sur disque, sans toucher à la GUI."""
+        rows = self.fetch_platform_catalog(platform, platform_name)
+        path = self.config.cache_dir / "catalogs" / f"igdb-{platform}.json"
+        saved = {"time": time.time(), "platform": platform, "source": "IGDB", "games": rows}
+        write_json(path, saved)
+        return {"platform": platform, "updated_at": saved["time"]}
 
     def enrich(self, title, platform=""):
         """Retourne le meilleur match probable ou None si le titre est incertain."""
@@ -234,3 +317,29 @@ class IGDBClient:
                 chosen = _metadata(game)
         write_json(cache, {"time": time.time(), "data": chosen})
         return chosen
+
+
+def _catalog_entry(game):
+    if not game.get("id") or not game.get("name"):
+        return None
+    metadata = _metadata(game)
+    genres = metadata["genres"]
+    critic = metadata.get("critic_rating")
+    return {
+        "igdb_id": game["id"],
+        "title": metadata["name"],
+        "genre": genres[0] if genres else "",
+        "genres": genres,
+        "score": round(critic) if critic is not None else None,
+        "critic_score": critic,
+        "score_source": "IGDB · critiques" if critic is not None else "",
+        "critic_rating_count": metadata.get("critic_rating_count") or 0,
+        "rating": metadata.get("rating"),
+        "rating_count": metadata.get("rating_count") or 0,
+        "hypes": game.get("hypes") or 0,
+        "release_date": metadata.get("release_date", ""),
+        "igdb_url": metadata.get("url", ""),
+        "cover_url": metadata.get("cover_url", ""),
+        "summary": metadata.get("summary", ""),
+        "source": "IGDB",
+    }

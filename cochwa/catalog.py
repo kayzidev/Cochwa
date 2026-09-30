@@ -1,4 +1,4 @@
-"""Catalogue PS2 : titres Redump exacts, genres et recommandations dynamiques.
+"""Catalogue local et cache IGDB par plateforme.
 
 Source packagée : ``cochwa/data/catalog_ps2.json``. Extension utilisateur
 possible via ``~/.config/cochwa/catalog_ps2.json`` (même schéma ; une entrée
@@ -17,16 +17,29 @@ import time
 from importlib import resources
 
 from cochwa.config import DEFAULT_CONFIG_DIR
+from cochwa.consoles import get as get_console
+from cochwa.services.igdb import CATALOG_TTL
 
 USER_CATALOG = DEFAULT_CONFIG_DIR / "catalog_ps2.json"
 
-_cache = {"entries": None, "mtime": 0.0}
+_cache = {"entries": None, "mtime": None}
 _platform_caches = {}
 
 
+def clear_catalog_cache():
+    """Force la relecture des catalogues après une synchronisation."""
+    _cache.update(entries=None, mtime=None)
+    _platform_caches.clear()
+
+
 def _load_packaged(platform="ps2"):
-    text = resources.files("cochwa.data").joinpath(f"catalog_{platform}.json").read_text("utf-8")
-    return json.loads(text).get("games", [])
+    try:
+        text = (
+            resources.files("cochwa.data").joinpath(f"catalog_{platform}.json").read_text("utf-8")
+        )
+        return json.loads(text).get("games", [])
+    except (FileNotFoundError, ModuleNotFoundError):
+        return []
 
 
 def _valid_entry(entry):
@@ -35,47 +48,122 @@ def _valid_entry(entry):
         and isinstance(entry.get("title"), str)
         and entry["title"].strip()
         and isinstance(entry.get("genre", ""), str)
-        and ("score" not in entry or type(entry["score"]) is int)
+        and (
+            "score" not in entry
+            or entry["score"] is None
+            or (isinstance(entry["score"], (int, float)) and not isinstance(entry["score"], bool))
+        )
     )
 
 
-def catalog_entries(platform="ps2"):
+def _catalog_files(platform, cache_dir=None):
+    user = USER_CATALOG if platform == "ps2" else DEFAULT_CONFIG_DIR / f"catalog_{platform}.json"
+    remote = None
+    if cache_dir is not None:
+        remote = cache_dir / "catalogs" / f"igdb-{platform}.json"
+    return user, remote
+
+
+def has_igdb_catalog(platform="ps2", cache_dir=None):
+    """Indique si un catalogue IGDB complet a déjà été synchronisé."""
+    _, remote = _catalog_files(platform, cache_dir)
+    if not remote or not remote.is_file():
+        return False
+    try:
+        data = json.loads(remote.read_text())
+        return (
+            time.time() - float(data["time"]) < CATALOG_TTL
+            and isinstance(data.get("games"), list)
+            and bool(data["games"])
+        )
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+
+
+def catalog_entries(platform="ps2", cache_dir=None):
     """Entrées du catalogue (packagées + extension utilisateur), rechargées
     si le fichier utilisateur change."""
-    if platform not in {"ps2", "switch"}:
+    console = get_console(platform)
+    if console is None:
         raise ValueError("Plateforme inconnue")
+    user_catalog, remote_catalog = _catalog_files(platform, cache_dir)
+    key = (platform, str(cache_dir) if cache_dir is not None else "default")
     cache = (
         _cache
-        if platform == "ps2"
-        else _platform_caches.setdefault(platform, {"entries": None, "mtime": 0.0})
+        if key == ("ps2", "default")
+        else _platform_caches.setdefault(key, {"entries": None, "mtime": None})
     )
-    user_catalog = (
-        USER_CATALOG if platform == "ps2" else DEFAULT_CONFIG_DIR / f"catalog_{platform}.json"
-    )
-    user_mtime = 0.0
+    mtimes = []
+    for path in (user_catalog, remote_catalog):
+        try:
+            mtimes.append(path.stat().st_mtime if path else 0.0)
+        except OSError:
+            mtimes.append(0.0)
+    if cache["entries"] is not None and mtimes == cache["mtime"]:
+        return cache["entries"]
+    merged = {}
+    for entry in _load_packaged(platform):
+        if _valid_entry(entry):
+            copied = dict(entry)
+            if platform == "ps2" and type(copied.get("score")) is int:
+                copied.setdefault("metacritic_score", copied["score"])
+                copied.setdefault("score_source", "Metacritic · catalogue local")
+            merged[copied["title"].casefold()] = copied
     user_entries = []
     try:
-        user_mtime = user_catalog.stat().st_mtime
         data = json.loads(user_catalog.read_text())
         user_entries = [e for e in data.get("games", []) if _valid_entry(e)]
-    except (OSError, ValueError):
-        user_mtime = 0.0
-    if cache["entries"] is not None and user_mtime == cache["mtime"]:
-        return cache["entries"]
-    merged = {e["title"]: dict(e) for e in _load_packaged(platform) if _valid_entry(e)}
+    except (OSError, ValueError, TypeError):
+        pass
     for entry in user_entries:
-        merged[entry["title"]] = dict(entry)
+        merged[entry["title"].casefold()] = dict(entry)
+    if remote_catalog and has_igdb_catalog(platform, cache_dir):
+        try:
+            data = json.loads(remote_catalog.read_text())
+            for entry in data.get("games", []):
+                if not _valid_entry(entry):
+                    continue
+                key = entry["title"].casefold()
+                prior = merged.get(key, {})
+                merged[key] = {**prior, **entry}
+        except (OSError, ValueError, TypeError):
+            pass
     cache["entries"] = list(merged.values())
-    cache["mtime"] = user_mtime
+    cache["mtime"] = mtimes
     return cache["entries"]
 
 
-def top_entries(platform="ps2"):
-    """Le vrai top des jeux PS2 les mieux notés : entrées avec score,
-    triées par score décroissant (Metacritic indicatif)."""
+def top_entries(platform="ps2", cache_dir=None):
+    """Tous les jeux notés par les critiques IGDB, sinon le Top local historique."""
+    entries = catalog_entries(platform, cache_dir)
+    igdb_scored = [
+        e
+        for e in entries
+        if e.get("source") == "IGDB" and type(e.get("critic_score")) in (int, float)
+    ]
+    if igdb_scored:
+        return sorted(
+            igdb_scored,
+            key=lambda e: (
+                -float(e["critic_score"]),
+                -int(e.get("critic_rating_count") or 0),
+                e["title"].casefold(),
+            ),
+        )
+    local = [
+        e for e in entries if type(e.get("metacritic_score")) is int or type(e.get("score")) is int
+    ]
+    if local:
+        return sorted(
+            local,
+            key=lambda e: (
+                -int(e.get("metacritic_score", e.get("score", 0))),
+                e["title"].casefold(),
+            ),
+        )
     return sorted(
-        (e for e in catalog_entries(platform) if type(e.get("score")) is int or e.get("top_rank")),
-        key=lambda e: (e.get("top_rank", -e.get("score", 0)), e["title"].casefold()),
+        (e for e in entries if e.get("top_rank")),
+        key=lambda e: (e.get("top_rank", 0), e["title"].casefold()),
     )
 
 
@@ -83,25 +171,64 @@ def top_titles():
     return [e["title"] for e in top_entries()]
 
 
-def genres(platform="ps2"):
+def genres(platform="ps2", cache_dir=None):
     """Genres présents dans le catalogue, triés (pour le filtre de l'onglet Top)."""
-    return sorted({e.get("genre", "") for e in catalog_entries(platform) if e.get("genre")})
+    return sorted(
+        {e.get("genre", "") for e in catalog_entries(platform, cache_dir) if e.get("genre")}
+    )
 
 
-def recommended_pool(platform="ps2"):
-    """Les 100 jeux recommandés — ensemble distinct du Top (découverte)."""
-    return [e for e in catalog_entries(platform) if e.get("recommended")]
+def recommended_pool(platform="ps2", cache_dir=None):
+    """Candidats recommandés ; une sélection de 20 à 30 est affichée."""
+    entries = catalog_entries(platform, cache_dir)
+    if has_igdb_catalog(platform, cache_dir):
+        return [e for e in entries if e.get("source") == "IGDB"]
+    return [e for e in entries if e.get("recommended")]
 
 
-def recommended_entries(count=20, day=None, platform="ps2"):
-    """Sélection du jour parmi les 100 recommandés — rotation quotidienne
-    déterministe (même graine pour un jour donné)."""
-    pool = recommended_pool(platform)
-    if day is None:
-        day = time.strftime("%Y%m%d")
-    shuffled = list(pool)
-    random.Random(str(day)).shuffle(shuffled)
-    return shuffled[:count]
+def recommended_entries(count=30, day=None, platform="ps2", cache_dir=None):
+    """Sélection variée, au plus 30 jeux, depuis le catalogue local ou IGDB."""
+    pool = recommended_pool(platform, cache_dir)
+    if has_igdb_catalog(platform, cache_dir):
+        remaining = sorted(
+            pool,
+            key=lambda e: (
+                -float(e.get("rating") or 0),
+                -float(e.get("score") or 0),
+                -int(e.get("rating_count") or 0),
+                -int(e.get("hypes") or 0),
+                e["title"].casefold(),
+            ),
+        )
+        # Round-robin par genre pour que la sélection ne soit pas monopolisée
+        # par les RPG ou les jeux d'action.
+        buckets = {}
+        for entry in remaining:
+            buckets.setdefault(entry.get("genre") or "Autres", []).append(entry)
+        pool = []
+        while any(buckets.values()):
+            for genre in sorted(buckets):
+                if buckets[genre]:
+                    pool.append(buckets[genre].pop(0))
+    else:
+        day = time.strftime("%Y%m%d") if day is None else day
+        random.Random(str(day)).shuffle(pool)
+        if len(pool) < 20:
+            known = {entry["title"].casefold() for entry in pool}
+            extras = [
+                e
+                for e in catalog_entries(platform, cache_dir)
+                if e["title"].casefold() not in known
+            ]
+            extras.sort(
+                key=lambda e: (
+                    -int(e.get("metacritic_score", e.get("score", e.get("top_rank", 0))) or 0),
+                    e["title"].casefold(),
+                )
+            )
+            pool.extend(extras)
+    desired = min(30, max(20, int(count)))
+    return pool[: min(desired, len(pool))]
 
 
 # Compatibilité avec l'ancienne API (listes statiques).

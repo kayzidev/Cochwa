@@ -39,6 +39,20 @@ class CardGrid(QScrollArea):
 
     def add(self, card, animate=True, index=None):
         self.cards.append(card)
+        self.add_layouted_card(card)
+
+    def add_many(self, cards):
+        """Ajoute un lot de cartes avec un seul recalcul de grille."""
+        cards = list(cards)
+        if not cards:
+            return
+        self.cards.extend(cards)
+        for card in cards:
+            card.show()
+        self._relayout()
+        self._update_empty()
+
+    def add_layouted_card(self, card):
         # Pas d'animation d'opacité imbriquée : garde les jaquettes nettes au scroll.
         self._relayout()
         card.show()

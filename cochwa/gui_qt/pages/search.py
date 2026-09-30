@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import threading
+import webbrowser
+from difflib import SequenceMatcher
 
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -17,9 +19,11 @@ from PySide6.QtWidgets import (
 )
 from shiboken6 import isValid
 
+from cochwa.catalog import catalog_entries
 from cochwa.gui_qt.cards import GameCard
 from cochwa.gui_qt.grid import CardGrid
 from cochwa.gui_qt.widgets import PageHeader
+from cochwa.services.relevance import normalized
 
 SOURCES = {"Toutes": "all", "Internet Archive": "ia_redump", "MiNERVA": "minerva"}
 
@@ -267,10 +271,40 @@ class SearchPage(QWidget):
                 game.platform,
                 apply_metadata,
             )
+        if not result.games and not result.warnings:
+            fallback = self._igdb_match(self.query.text().strip())
+            if fallback:
+                card = GameCard(
+                    fallback["title"],
+                    subtitle="Fiche IGDB · aucune édition Internet Archive trouvée",
+                    action=lambda url=fallback["igdb_url"]: webbrowser.open(url),
+                    action_text="Ouvrir la fiche IGDB",
+                )
+                self.grid.add(card)
+                if self.app.start_workers and fallback.get("cover_url"):
+                    self.app.covers.request_igdb_cover(fallback["title"], fallback["cover_url"])
         self.grid.set_empty(
             "" if result.games else "Essayez un titre plus court ou retirez certains filtres.",
             "Aucun jeu trouvé",
         )
+
+    def _igdb_match(self, query):
+        target = normalized(query)
+        candidates = []
+        for entry in catalog_entries(self.platform, self.app.config.cache_dir):
+            url = entry.get("igdb_url", "")
+            if not url:
+                continue
+            title = normalized(entry.get("title", ""))
+            ratio = SequenceMatcher(None, target, title).ratio()
+            if ratio >= 0.9:
+                candidates.append((ratio, entry))
+        if not candidates:
+            return None
+        candidates.sort(key=lambda item: item[0], reverse=True)
+        if len(candidates) > 1 and candidates[0][0] - candidates[1][0] < 0.04:
+            return None
+        return candidates[0][1]
 
     def _on_cover(self, base, path):
         if not path:
