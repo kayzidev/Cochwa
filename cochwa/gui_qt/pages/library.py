@@ -5,13 +5,11 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QComboBox,
-    QDialog,
     QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
-    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
@@ -24,6 +22,7 @@ from cochwa.gui_qt.cards import GameCard
 from cochwa.gui_qt.grid import CardGrid
 from cochwa.gui_qt.pages.emulators import ReadyPanel
 from cochwa.gui_qt.widgets import PageHeader
+from cochwa.gui_qt.window_chrome import FramelessDialog, confirm
 from cochwa.services.conversion import convert_all_chd
 from cochwa.services.library import export_csv, scan
 from cochwa.services.library import launch as launch_game
@@ -248,7 +247,9 @@ class LibraryPage(QWidget):
             def apply_metadata(metadata, target=card, game_title=title):
                 if metadata and isValid(target):
                     target.set_igdb_metadata(metadata)
-                    self.app.covers.request_igdb_cover(game_title, metadata.get("cover_url", ""))
+                    self.app.covers.request_igdb_cover(
+                        game_title, metadata.get("cover_url", ""), console.id
+                    )
 
             self.app.metadata.request(
                 title,
@@ -295,13 +296,13 @@ class LibraryPage(QWidget):
         if not candidates:
             self.status.setText("Aucun ISO/CUE sans CHD à convertir.")
             return
-        answer = QMessageBox.question(
+        if not confirm(
             self,
             "Conversion en masse",
             f"Convertir {len(candidates)} disque(s) en CHD ?\n"
             "Les ISO sont traités comme DVD, les CUE comme CD. Les originaux sont conservés.",
-        )
-        if answer != QMessageBox.Yes:
+            accept_text="Convertir",
+        ):
             return
 
         def progress(index, total, name):
@@ -355,7 +356,7 @@ class LibraryPage(QWidget):
                 "Aucun doublon parmi les fichiers vérifiés (hash calculé via « Vérifier »)."
             )
             return
-        dialog = QDialog(self)
+        dialog = FramelessDialog(self)
         dialog.setWindowTitle("Doublons par hash")
         dialog.resize(820, 420)
         layout = QVBoxLayout(dialog)
@@ -375,8 +376,8 @@ class LibraryPage(QWidget):
         layout.addWidget(text)
         dialog.exec()
 
-    def _on_cover(self, base, path):
-        if not path:
+    def _on_cover(self, platform, base, path):
+        if platform != self.app.console.id or not path:
             return
         for card in self.grid.cards:
             if card.base_title == base:

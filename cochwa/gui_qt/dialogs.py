@@ -10,7 +10,6 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
-    QDialog,
     QFileDialog,
     QHBoxLayout,
     QHeaderView,
@@ -27,7 +26,8 @@ from shiboken6 import isValid
 
 from cochwa.api.redump import get_datfile
 from cochwa.gui_qt.widgets import PageHeader
-from cochwa.infrastructure.storage import atomic_write
+from cochwa.gui_qt.window_chrome import FramelessDialog
+from cochwa.infrastructure.storage import atomic_write, write_json
 from cochwa.services.conversion import convert_chd
 from cochwa.services.library import launch, verify_manifest
 from cochwa.util import human_size
@@ -118,7 +118,7 @@ def _igdb_view(layout, app, title, platform):
     return view
 
 
-class RemoteDetailsDialog(QDialog):
+class RemoteDetailsDialog(FramelessDialog):
     """Sélection explicite des disques/pistes avant mise en file."""
 
     def __init__(self, app, game, parent=None):
@@ -282,7 +282,7 @@ class RemoteDetailsDialog(QDialog):
             self.status.setText(str(exc))
 
 
-class LocalDetailsDialog(QDialog):
+class LocalDetailsDialog(FramelessDialog):
     """Jeu installé : lancement, vérification, conversion CHD, jaquette."""
 
     def __init__(self, app, game, parent=None):
@@ -463,25 +463,31 @@ def choose_cover(app, title):
     )
     if not filename:
         return
-    import hashlib
     import io
 
     from PIL import Image
 
-    base = title.split("(")[0].strip()
+    from cochwa.api.steamgriddb import cover_cache_lock, cover_cache_path
+    from cochwa.util import artwork_search_title
+
+    base = artwork_search_title(title)
+    platform = app.console.id
+    key = (platform, base)
     try:
         with Image.open(filename) as source:
             source.thumbnail((600, 900))
             buffer = io.BytesIO()
             source.convert("RGB").save(buffer, "PNG")
-        path = (
-            app.config.cache_dir
-            / "covers"
-            / (hashlib.sha256(base.casefold().encode()).hexdigest() + ".png")
-        )
-        atomic_write(path, buffer.getvalue())
-        app.covers.results[base] = path
-        app.covers.loaded.emit(base, path)
+        path = cover_cache_path(app.config.cache_dir / "covers", platform, base)
+        with cover_cache_lock(path):
+            atomic_write(path, buffer.getvalue())
+            try:
+                write_json(path.with_suffix(".source.json"), {"source": "manual"})
+            except OSError:
+                pass
+        app.covers.results[key] = path
+        app.covers.sources[key] = "manual"
+        app.covers.loaded.emit(platform, base, path)
         app.tab_library.render()
     except Exception as exc:
         app.error(str(exc))

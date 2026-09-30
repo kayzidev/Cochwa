@@ -2,10 +2,18 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from cochwa.api.steamgriddb import _ia_cover_url, download_cover, search_grids
+from cochwa.api.steamgriddb import _ia_cover_url, cover_cache_path, download_cover, search_grids
 
 
 class ArtworkTests(unittest.TestCase):
+    def test_cache_separates_platforms_and_dump_suffixes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tagged = cover_cache_path(tmp, "switch", "Pokémon Violet [01008F6008C5E000][v0]")
+            clean = cover_cache_path(tmp, "switch", "Pokémon Violet")
+            other = cover_cache_path(tmp, "ps2", "Pokémon Violet")
+            self.assertEqual(tagged, clean)
+            self.assertNotEqual(tagged, other)
+
     def test_autocomplete_term_is_in_path(self):
         with patch(
             "cochwa.api.steamgriddb.get_json",
@@ -30,6 +38,22 @@ class ArtworkTests(unittest.TestCase):
         ) as request:
             self.assertEqual(search_grids("fixture", "Game"), [])
         self.assertEqual(request.call_count, 1)
+
+    def test_sgdb_requires_portrait_artwork(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with (
+                patch(
+                    "cochwa.api.steamgriddb.search_grids",
+                    return_value=[{"url": "https://example.test/landscape.png"}],
+                ),
+                patch(
+                    "cochwa.api.steamgriddb._fetch_image",
+                    side_effect=ValueError("Image générique"),
+                ) as fetch,
+            ):
+                result = download_cover("fixture", "Some Game", cache_dir=tmp, platform="ps2")
+            self.assertIsNone(result)
+            self.assertTrue(fetch.call_args.kwargs["portrait"])
 
     def test_ia_cover_url_picks_cover_like_file(self):
         metadata = {

@@ -20,7 +20,7 @@ from cochwa.services.conversion import convert_all_chd
 from cochwa.services.index import LibraryIndex
 from cochwa.services.library import InstalledGame, export_csv
 from cochwa.services.search import _dedupe
-from cochwa.util import clean_rom_title, human_duration
+from cochwa.util import artwork_search_title, clean_rom_title, human_duration
 
 
 def game(title, size, identifier="id"):
@@ -45,12 +45,7 @@ class TitleVariantTests(unittest.TestCase):
     def test_variants_strip_region_and_the(self):
         self.assertEqual(
             _title_variants("The Getaway (Europe) (En,Fr,De)"),
-            [
-                "The Getaway (Europe) (En,Fr,De)",
-                "The Getaway",
-                "Getaway (Europe) (En,Fr,De)",
-                "Getaway",
-            ],
+            ["The Getaway", "Getaway"],
         )
 
     def test_variants_deduped(self):
@@ -77,6 +72,26 @@ class HumanDurationTests(unittest.TestCase):
         # Titres PS2 (parenthèses) et titres sans tag inchangés.
         self.assertEqual(clean_rom_title("Gran Turismo 4 (Europe)"), "Gran Turismo 4 (Europe)")
         self.assertEqual(clean_rom_title("  "), "  ")
+
+    def test_artwork_title_is_shared_across_consoles_and_preserves_editions(self):
+        self.assertEqual(
+            artwork_search_title("Mario Party Superstars[01006FE013472000][v0](nsw2u.xyz)"),
+            "Mario Party Superstars",
+        )
+        self.assertEqual(
+            artwork_search_title("[PS2] Rayman 2 - Revolution [E-F-G-I-S] [SLUS-20138]"),
+            "Rayman 2 - Revolution",
+        )
+        self.assertEqual(
+            artwork_search_title("Gran Turismo 4 (Europe, Australia) (En,Fr,De,Es,It)"),
+            "Gran Turismo 4",
+        )
+        self.assertEqual(
+            artwork_search_title("Gran Turismo 4 (Spec II v1.10)"),
+            "Gran Turismo 4 (Spec II v1.10)",
+        )
+        self.assertEqual(artwork_search_title("Doom (2016)"), "Doom (2016)")
+        self.assertEqual(artwork_search_title("Game (USA) (En) [Disc 1 of 2]"), "Game")
 
 
 class ExportCsvTests(unittest.TestCase):

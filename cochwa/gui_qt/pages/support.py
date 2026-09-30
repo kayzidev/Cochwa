@@ -4,11 +4,10 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices
-from PySide6.QtWidgets import QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
 from cochwa.consoles import CONSOLES
-from cochwa.gui_qt import theme
-from cochwa.gui_qt.widgets import PageHeader
+from cochwa.gui_qt.widgets import PageHeader, ResponsiveGrid, section
 
 PROJECT_URL = "https://github.com/kayzidev/Cochwa"
 SRM_URL = "https://steamgriddb.github.io/steam-rom-manager/"
@@ -31,46 +30,49 @@ class SupportPage(QWidget):
         body = QWidget()
         layout.addWidget(scroll, stretch=1)
         scroll.setWidget(body)
-        layout = QVBoxLayout(body)
-        layout.setContentsMargins(0, 0, 8, 0)
-        layout.setSpacing(16)
-        layout.addWidget(self._section("Émulateurs"))
+        content = QVBoxLayout(body)
+        content.setContentsMargins(0, 0, 8, 0)
+        content.setSpacing(16)
+        cards = ResponsiveGrid(min_card_width=320)
+        content.addWidget(cards)
+        tutorial, box = section(
+            "Découvrir Cochwa", "Retrouvez les zones essentielles de l’application pas à pas."
+        )
+        row = QHBoxLayout()
+        replay = QPushButton("Revoir le tutoriel")
+        replay.clicked.connect(app.start_tutorial)
+        row.addWidget(replay)
+        row.addStretch()
+        box.addLayout(row)
+        cards.add_card(tutorial)
         for console in CONSOLES:
-            layout.addLayout(
-                self._link(
-                    f"{console.emulator} — {console.name}",
+            cards.add_card(
+                self._link_card(
+                    f"{console.emulator} · {console.name}",
                     console.emulator_url,
-                    f"Site et téléchargements de l'émulateur {console.name} utilisé par Cochwa.",
+                    "Site officiel et téléchargements de l’émulateur.",
                 )
             )
-
-        layout.addWidget(self._section("Intégration Steam"))
-        layout.addLayout(
-            self._link(
+        cards.add_card(
+            self._link_card(
                 "Steam ROM Manager",
                 SRM_URL,
-                "Ajoute les ROMs à Steam : ouvrir SRM, Parse, Preview, "
-                "« Save apps to Steam » (redémarrage de Steam manuel).",
+                "Préparez vos jeux pour Steam et synchronisez-les depuis SRM.",
             )
         )
-
-        layout.addWidget(self._section("Projet"))
-        layout.addLayout(
-            self._link(
-                "Cochwa sur GitHub",
-                PROJECT_URL,
-                "Code source, releases et suivi du projet.",
+        cards.add_card(
+            self._link_card(
+                "Cochwa sur GitHub", PROJECT_URL, "Code source, versions et suivi du projet."
             )
         )
-        layout.addLayout(
-            self._link(
+        cards.add_card(
+            self._link_card(
                 "Signaler un bug",
                 PROJECT_URL + "/issues",
-                "Ouvrir un ticket : décrire le contexte, joindre le diagnostic "
-                "local (onglet Paramètres).",
+                "Décrivez le problème et joignez le diagnostic local.",
             )
         )
-        layout.addStretch(1)
+        content.addStretch(1)
 
         about = QLabel(
             "Cochwa n'héberge aucun contenu : il interroge des catalogues "
@@ -78,26 +80,20 @@ class SupportPage(QWidget):
         )
         about.setObjectName("muted")
         about.setWordWrap(True)
-        layout.addWidget(about)
+        content.addWidget(about)
 
-    def _section(self, text):
-        label = QLabel(f"<b>{text}</b>")
-        label.setContentsMargins(0, 10, 0, 2)
-        return label
-
-    def _link(self, text, url, description):
-        """Bouton d'ouverture dans le navigateur + description + URL visible."""
-        row = QVBoxLayout()
-        row.setSpacing(8)
-        button = QPushButton(text)
+    def _link_card(self, title, url, description):
+        panel, box = section(title, description)
+        link = QLabel(url)
+        link.setObjectName("muted")
+        link.setWordWrap(True)
+        link.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        box.addWidget(link)
+        row = QHBoxLayout()
+        button = QPushButton(f"Ouvrir {title.split(' · ')[0]} ↗")
         button.setToolTip(url)
-        button.setStyleSheet("text-align: left; padding: 12px 16px;")
-        # clicked émet un booléen « checked » : ne pas le passer à openUrl.
         button.clicked.connect(lambda _checked=False, u=url: QDesktopServices.openUrl(QUrl(u)))
         row.addWidget(button)
-        desc = QLabel(f"{description}<br><span style='color:{theme.ACCENT}'>{url}</span>")
-        desc.setObjectName("muted")
-        desc.setWordWrap(True)
-        desc.setTextInteractionFlags(Qt.TextSelectableByMouse)  # URL copiable
-        row.addWidget(desc, stretch=1)
-        return row
+        row.addStretch()
+        box.addLayout(row)
+        return panel

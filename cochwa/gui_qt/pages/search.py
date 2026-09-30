@@ -261,10 +261,14 @@ class SearchPage(QWidget):
                 ia_identifier=None if game.external else game.identifier,
             )
 
-            def apply_metadata(metadata, target=card, game_title=game.clean_title):
+            def apply_metadata(
+                metadata, target=card, game_title=game.clean_title, platform=game.platform
+            ):
                 if metadata and isValid(target):
                     target.set_igdb_metadata(metadata)
-                    self.app.covers.request_igdb_cover(game_title, metadata.get("cover_url", ""))
+                    self.app.covers.request_igdb_cover(
+                        game_title, metadata.get("cover_url", ""), platform
+                    )
 
             self.app.metadata.request(
                 game.clean_title,
@@ -282,7 +286,9 @@ class SearchPage(QWidget):
                 )
                 self.grid.add(card)
                 if self.app.start_workers and fallback.get("cover_url"):
-                    self.app.covers.request_igdb_cover(fallback["title"], fallback["cover_url"])
+                    self.app.covers.request_igdb_cover(
+                        fallback["title"], fallback["cover_url"], self.app.console.id
+                    )
         self.grid.set_empty(
             "" if result.games else "Essayez un titre plus court ou retirez certains filtres.",
             "Aucun jeu trouvé",
@@ -306,8 +312,8 @@ class SearchPage(QWidget):
             return None
         return candidates[0][1]
 
-    def _on_cover(self, base, path):
-        if not path:
+    def _on_cover(self, platform, base, path):
+        if platform != self.app.console.id or not path:
             return
         for card in self.grid.cards:
             if card.base_title == base:

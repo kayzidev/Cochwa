@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 )
 
 from cochwa.gui_qt import theme
+from cochwa.util import artwork_search_title
 
 COVER_W, COVER_H = 190, 214
 
@@ -125,7 +126,7 @@ class GameCard(QWidget):
         self.setFixedSize(216, 440 if secondary_action else 400)
         self._cover = None  # QPixmap final, base du zoom au survol
         self._on_double_click = on_double_click
-        self.base_title = title.split("(")[0].strip()
+        self.base_title = artwork_search_title(title)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)

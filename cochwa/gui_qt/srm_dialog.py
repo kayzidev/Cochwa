@@ -1,14 +1,16 @@
 """Assistant Steam : aperçu → installation des parseurs → synchronisation SRM."""
 
+import threading
+import time
+
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QCheckBox,
-    QDialog,
     QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QVBoxLayout,
@@ -16,14 +18,20 @@ from PySide6.QtWidgets import (
 
 from cochwa.consoles import CONSOLES
 from cochwa.gui_qt.widgets import PageHeader
+from cochwa.gui_qt.window_chrome import FramelessDialog, confirm
 from cochwa.services import srm
 
 
-class SRMDialog(QDialog):
+class SRMDialog(FramelessDialog):
     def __init__(self, app, parent=None):
         super().__init__(parent or app)
         self.app = app
         self.plan = None
+        self._sync_cancel = None
+        self._close_after_sync = False
+        self._sync_started = 0.0
+        self._sync_timer = QTimer(self)
+        self._sync_timer.timeout.connect(self._update_sync_status)
         self.setWindowTitle("Cochwa → Steam")
         self.resize(820, 650)
         layout = QVBoxLayout(self)
@@ -83,10 +91,14 @@ class SRMDialog(QDialog):
         self.sync_button.clicked.connect(self.sync)
         self.sync_button.setEnabled(False)
         buttons.addWidget(self.sync_button)
+        self.cancel_button = QPushButton("Annuler la synchronisation")
+        self.cancel_button.clicked.connect(self.cancel_sync)
+        self.cancel_button.hide()
+        buttons.addWidget(self.cancel_button)
         layout.addLayout(buttons)
-        close = QPushButton("Fermer")
-        close.clicked.connect(self.reject)
-        layout.addWidget(close)
+        self.close_button = QPushButton("Fermer")
+        self.close_button.clicked.connect(self.reject)
+        layout.addWidget(self.close_button)
         for field in (self.directory, self.steam_dir):
             field.textChanged.connect(self.invalidate)
         for box in self.platforms.values():
@@ -174,20 +186,76 @@ class SRMDialog(QDialog):
             self.status.setText(str(error))
 
     def sync(self):
-        answer = QMessageBox.question(
+        if self._sync_cancel is not None or self.plan is None:
+            return
+        if not confirm(
             self,
             "Synchroniser les jeux avec Steam",
             "SRM ajoutera les jeux de tous ses parseurs activés, y compris vos parseurs personnels. Steam et SRM doivent être fermés. Continuer ?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if answer != QMessageBox.Yes:
+            accept_text="Synchroniser",
+        ):
             return
+        plan = self.plan
+        self._sync_cancel = threading.Event()
+        self._sync_started = time.monotonic()
         self.sync_button.setEnabled(False)
-        self.status.setText("Synchronisation et recherche des jaquettes…")
+        self.prepare_button.setEnabled(False)
+        self.cancel_button.show()
+        for field in (self.directory, self.steam_dir, *self.platforms.values()):
+            field.setEnabled(False)
+        self._sync_timer.start(1000)
+        self._update_sync_status()
 
-        def done(message):
-            self.sync_button.setEnabled(True)
-            self.status.setText(message)
+        def done(report):
+            self._finish_sync(report.message)
 
-        self.app.worker.submit(lambda: srm.synchronize(self.app.config), done, done)
+        def failed(message):
+            self._finish_sync(message)
+
+        self.app.worker.submit(
+            lambda: srm.synchronize(self.app.config, plan, self._sync_cancel), done, failed
+        )
+
+    def _update_sync_status(self):
+        if self._sync_cancel is None or self._sync_cancel.is_set():
+            return
+        elapsed = int(time.monotonic() - self._sync_started)
+        self.status.setText(
+            f"SRM traite les parseurs et les jaquettes depuis {elapsed // 60} min "
+            f"{elapsed % 60:02d} s. Vous pouvez annuler cette opération."
+        )
+
+    def cancel_sync(self):
+        if self._sync_cancel is not None:
+            self._sync_cancel.set()
+            self.cancel_button.setEnabled(False)
+            self._sync_timer.stop()
+            self.status.setText("Annulation de la synchronisation SRM en cours…")
+
+    def _finish_sync(self, message):
+        self._sync_timer.stop()
+        self._sync_cancel = None
+        self.cancel_button.hide()
+        self.cancel_button.setEnabled(True)
+        self.sync_button.setEnabled(self.plan is not None)
+        self.prepare_button.setEnabled(True)
+        for field in (self.directory, self.steam_dir, *self.platforms.values()):
+            field.setEnabled(True)
+        self.status.setText(message)
+        if self._close_after_sync:
+            super().reject()
+
+    def reject(self):
+        if self._sync_cancel is not None:
+            self._close_after_sync = True
+            self.cancel_sync()
+            return
+        super().reject()
+
+    def closeEvent(self, event):
+        if self._sync_cancel is not None:
+            self._close_after_sync = True
+            self.cancel_sync()
+            event.ignore()
+            return
+        super().closeEvent(event)

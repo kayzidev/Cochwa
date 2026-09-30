@@ -12,7 +12,6 @@ import time
 from pathlib import Path
 
 from cochwa.api.steamgriddb import NEGATIVE_TTL
-from cochwa.services.igdb import CATALOG_TTL
 from cochwa.services.igdb import METADATA_TTL as IGDB_TTL
 from cochwa.services.igdb import NEGATIVE_TTL as IGDB_NEGATIVE_TTL
 
@@ -72,7 +71,9 @@ def purge_expired_caches(cache_dir, now=None):
             now,
             negative_ttl=IGDB_NEGATIVE_TTL,
         ),
-        "catalogs": _purge(cache_dir / "catalogs", "igdb-*.json", "time", CATALOG_TTL, now),
+        # La synchronisation IGDB remplace atomiquement le catalogue. Garder
+        # l'ancienne copie évite un Top vide si le réseau échoue au démarrage.
+        "catalogs": 0,
         "negative_covers": _purge(cache_dir / "covers", "*.missing.json", "at", NEGATIVE_TTL, now),
     }
 

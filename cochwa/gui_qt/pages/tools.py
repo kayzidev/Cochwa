@@ -1,8 +1,8 @@
 """Accès central aux outils existants, sans dupliquer leur logique métier."""
 
-from PySide6.QtWidgets import QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget
 
-from cochwa.gui_qt.widgets import PageHeader, section
+from cochwa.gui_qt.widgets import PageHeader, ResponsiveGrid, section
 
 
 class ToolsPage(QWidget):
@@ -15,18 +15,21 @@ class ToolsPage(QWidget):
             "Vos outils", "Entretenez votre bibliothèque et préparez vos jeux pour Steam."
         )
         layout.addWidget(self.header)
-        scroll = QScrollArea()
+        scroll = self.scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         body = QWidget()
         content = QVBoxLayout(body)
         content.setContentsMargins(0, 0, 8, 0)
+        self.panels = {}
+        cards = ResponsiveGrid(min_card_width=390)
+        content.addWidget(cards)
         for title, description, actions in (
             (
                 "Steam",
                 "Préréglages par console, aperçu des modifications et synchronisation.",
                 [
-                    ("Configurer Steam ROM Manager", app.tab_settings.setup_srm),
-                    ("Ouvrir Steam ROM Manager", app.tab_settings.open_srm),
+                    ("Configurer Steam", app.tab_settings.setup_srm),
+                    ("Ouvrir SRM", app.tab_settings.open_srm),
                 ],
             ),
             (
@@ -45,13 +48,21 @@ class ToolsPage(QWidget):
             ),
         ):
             panel, box = section(title, description)
-            for label, callback in actions:
+            self.panels[title] = panel
+            buttons = QGridLayout()
+            buttons.setSpacing(8)
+            for index, (label, callback) in enumerate(actions):
                 button = QPushButton(label)
+                if title == "Steam":
+                    button.setToolTip(
+                        "Configurer Steam ROM Manager" if index == 0 else "Ouvrir Steam ROM Manager"
+                    )
                 button.clicked.connect(lambda checked=False, action=callback: self.run(action))
-                box.addWidget(button)
+                buttons.addWidget(button, index // 2, index % 2)
                 if label == "Convertir en CHD":
                     self.convert = button
-            content.addWidget(panel)
+            box.addLayout(buttons)
+            cards.add_card(panel)
         self.status = QLabel()
         self.status.setObjectName("muted")
         self.status.setWordWrap(True)

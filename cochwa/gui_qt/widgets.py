@@ -2,7 +2,7 @@
 
 from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from cochwa.gui_qt import theme
 
@@ -63,6 +63,39 @@ def section(title, description=""):
         hint.setWordWrap(True)
         layout.addWidget(hint)
     return panel, layout
+
+
+class ResponsiveGrid(QWidget):
+    """Cartes en deux colonnes, ramenées à une colonne si l'espace manque."""
+
+    def __init__(self, min_card_width=400, parent=None):
+        super().__init__(parent)
+        self.min_card_width = min_card_width
+        self.cards = []
+        self.columns = 0
+        self.grid = QGridLayout(self)
+        self.grid.setContentsMargins(0, 0, 0, 0)
+        self.grid.setSpacing(16)
+
+    def add_card(self, card):
+        self.cards.append(card)
+        self._reflow()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._reflow()
+
+    def _reflow(self):
+        columns = 2 if self.width() >= 2 * self.min_card_width + self.grid.spacing() else 1
+        if columns == self.columns and self.grid.count() == len(self.cards):
+            return
+        self.columns = columns
+        while self.grid.count():
+            self.grid.takeAt(0)
+        for index, card in enumerate(self.cards):
+            self.grid.addWidget(card, index // columns, index % columns)
+        for column in range(2):
+            self.grid.setColumnStretch(column, 1 if column < columns else 0)
 
 
 class EmptyState(QWidget):

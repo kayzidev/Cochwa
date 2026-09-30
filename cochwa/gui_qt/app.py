@@ -6,14 +6,14 @@ présentation. Les workers ne touchent jamais les widgets (signaux Qt).
 
 from __future__ import annotations
 
+import json
 import sys
 import threading
 
-from PySide6.QtCore import QObject, QSize, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
-    QComboBox,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -38,18 +38,24 @@ from cochwa.gui_qt.pages.search import SearchPage
 from cochwa.gui_qt.pages.settings import SettingsPage
 from cochwa.gui_qt.pages.support import SupportPage
 from cochwa.gui_qt.pages.tools import ToolsPage
+from cochwa.gui_qt.platform_selector import PlatformSelector
 from cochwa.gui_qt.toasts import ToastManager
+from cochwa.gui_qt.transitions import PageTransition
+from cochwa.gui_qt.tutorial import TutorialOverlay
 from cochwa.gui_qt.widgets import brand_icon, brand_pixmap, navigation_icon
+from cochwa.gui_qt.window_chrome import TitleBar, install_resize_handles, layout_resize_handles
 from cochwa.gui_qt.workers import (
     CoverService,
     GameCatalogService,
     GameMetadataService,
     Worker,
 )
+from cochwa.infrastructure.storage import write_json
 from cochwa.services.index import LibraryIndex
 from cochwa.services.jobs import DownloadManager, JobStore
 from cochwa.services.maintenance import purge_quietly
 from cochwa.services.search import SearchService
+from cochwa.util import artwork_search_title
 
 
 class _JobHub(QObject):
@@ -61,6 +67,9 @@ class _JobHub(QObject):
 class MainWindow(QMainWindow):
     def __init__(self, config=None, *, start_workers=True):
         super().__init__()
+        self._frameless = sys.platform.startswith(("win", "linux"))
+        if self._frameless:
+            self.setWindowFlag(Qt.FramelessWindowHint)
         self.config = config or Config.load()
         purge_quietly(self.config.cache_dir)  # caches bornés (metadata, marqueurs SGDB)
         self.setWindowTitle(f"Cochwa — Bibliothèque {DEFAULT_CONSOLE.name}")
@@ -70,6 +79,8 @@ class MainWindow(QMainWindow):
         self.closing = False
         self.work_cancel = threading.Event()
         self.start_workers = start_workers
+        self._tutorial = None
+        self._page_transition = None
         self.console = DEFAULT_CONSOLE
 
         self.worker = Worker(self)
@@ -88,7 +99,14 @@ class MainWindow(QMainWindow):
         self.jobs_hub.event.connect(self.job_event)
 
         central = QWidget()
-        root = QHBoxLayout(central)
+        outer = QVBoxLayout(central)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
+        if self._frameless:
+            self.title_bar = TitleBar(self)
+            outer.addWidget(self.title_bar)
+        body = QWidget()
+        root = QHBoxLayout(body)
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
         root.addWidget(self._build_sidepanel())
@@ -121,6 +139,7 @@ class MainWindow(QMainWindow):
             item.setToolTip(label)
             self.pages.addWidget(page)
         root.addWidget(self.pages, stretch=1)
+        outer.addWidget(body, stretch=1)
         self.setCentralWidget(central)
         self.sidebar.currentRowChanged.connect(self.activate)
         self.sidebar.setCurrentRow(0)
@@ -129,6 +148,7 @@ class MainWindow(QMainWindow):
 
         self.toasts = ToastManager(self)
         self.statusBar().showMessage("Vos jeux, simplement.")
+        self._resize_handles = install_resize_handles(self) if self._frameless else []
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.tab_downloads.refresh)
@@ -142,7 +162,7 @@ class MainWindow(QMainWindow):
         """Identité de marque, plateforme active et navigation clavier native."""
         panel = QWidget()
         panel.setObjectName("sidepanel")
-        panel.setFixedWidth(218)
+        panel.setFixedWidth(236)
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(12, 20, 12, 12)
         layout.setSpacing(8)
@@ -159,12 +179,18 @@ class MainWindow(QMainWindow):
         slogan.setObjectName("eyebrow")
         layout.addWidget(slogan)
         layout.addSpacing(12)
-        platform = QLabel("PLATEFORME")
-        platform.setObjectName("eyebrow")
-        layout.addWidget(platform)
+        platform_area = QWidget()
+        platform_area.setObjectName("platformArea")
+        platform_area.setAttribute(Qt.WA_StyledBackground)
+        platform_layout = QVBoxLayout(platform_area)
+        platform_layout.setContentsMargins(12, 10, 12, 12)
+        platform_layout.setSpacing(6)
+        platform = QLabel("PLATEFORME ACTIVE")
+        platform.setObjectName("platformEyebrow")
+        platform_layout.addWidget(platform)
         # Sélecteur de console : PS2 et Switch actives ; les consoles futures
         # non implémentées restent grisées (« (bientôt) »).
-        self.console_box = QComboBox()
+        self.console_box = PlatformSelector(lambda: self.config.reduce_motion)
         self.console_box.setObjectName("consoleSelect")
         for console in CONSOLES:
             label = console.name if console.enabled else console.name + " (bientôt)"
@@ -174,7 +200,8 @@ class MainWindow(QMainWindow):
                 self.console_box.model().item(index).setEnabled(False)
         self.console_box.setCurrentIndex(CONSOLES.index(DEFAULT_CONSOLE))
         self.console_box.activated.connect(self.select_console)
-        layout.addWidget(self.console_box)
+        platform_layout.addWidget(self.console_box)
+        layout.addWidget(platform_area)
         self.sidebar = QListWidget()
         self.sidebar.setObjectName("sidebar")
         self.sidebar.setIconSize(QSize(18, 18))
@@ -191,9 +218,54 @@ class MainWindow(QMainWindow):
         return panel
 
     def resizeEvent(self, event):
+        if hasattr(self, "console_box"):
+            self.console_box.hidePopup()
+        if getattr(self, "_page_transition", None) is not None:
+            self._page_transition.cancel()
+            self._page_transition = None
         self.platform_note.setVisible(self.height() >= 740)
         self.shortcut_hint.setVisible(self.height() >= 740)
         super().resizeEvent(event)
+        if hasattr(self, "_resize_handles"):
+            layout_resize_handles(self, self._resize_handles)
+        if self._tutorial is not None:
+            self._tutorial.resize(self.size())
+            self._tutorial._reposition()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.WindowStateChange:
+            if hasattr(self, "title_bar"):
+                self.title_bar.update_maximize_button()
+            if hasattr(self, "_resize_handles"):
+                layout_resize_handles(self, self._resize_handles)
+
+    @property
+    def tutorial_state_file(self):
+        return self.config.state_dir / "tutorial-v1.json"
+
+    def tutorial_seen(self):
+        try:
+            return json.loads(self.tutorial_state_file.read_text()).get("seen") is True
+        except (OSError, ValueError, TypeError):
+            return False
+
+    def mark_tutorial_seen(self):
+        try:
+            write_json(self.tutorial_state_file, {"seen": True})
+        except (OSError, ValueError):
+            self.statusBar().showMessage("Tutoriel terminé ; impossible de mémoriser ce choix.")
+
+    def start_tutorial_if_needed(self):
+        if not self.tutorial_seen():
+            self.start_tutorial()
+
+    def start_tutorial(self):
+        if self._tutorial is None and not self.closing:
+            if self._page_transition is not None:
+                self._page_transition.cancel()
+                self._page_transition = None
+            self._tutorial = TutorialOverlay(self)
 
     def select_console(self, index):
         """Change de console : titre, bibliothèque et pages concernées suivent."""
@@ -229,10 +301,43 @@ class MainWindow(QMainWindow):
     def activate(self, row):
         if row < 0 or row >= self.pages.count():
             return
+        previous = self.pages.currentWidget()
+        changing_page = self.pages.currentIndex() != row
+        animate = (
+            changing_page
+            and previous is not None
+            and self.isVisible()
+            and self._tutorial is None
+            and not self.closing
+        )
+        outgoing = None
+        if self._page_transition is not None:
+            if animate:
+                outgoing = self._page_transition.grab()
+            self._page_transition.cancel()
+            self._page_transition = None
+        elif animate:
+            outgoing = previous.grab()
         self.pages.setCurrentIndex(row)
         page = self.pages.currentWidget()
         if hasattr(page, "activate"):
             page.activate()
+        if animate and outgoing is not None and not outgoing.isNull():
+            incoming = page.grab()
+            if not incoming.isNull():
+                transition = PageTransition(
+                    self.pages,
+                    outgoing,
+                    incoming,
+                    reduce_motion=self.config.reduce_motion,
+                    finished=self._page_transition_finished,
+                )
+                self._page_transition = transition
+                transition.start()
+
+    def _page_transition_finished(self, transition):
+        if self._page_transition is transition:
+            self._page_transition = None
 
     def navigate(self, key):
         """Destinations stables, indépendantes de l’ordre visuel du menu."""
@@ -253,7 +358,7 @@ class MainWindow(QMainWindow):
 
     def search_title(self, title):
         self.navigate("search")
-        self.tab_search.query.setText(title.split("(")[0].strip())
+        self.tab_search.query.setText(artwork_search_title(title))
         self.tab_search.do_search()
 
     # -- Notifications ----------------------------------------------------
@@ -284,13 +389,14 @@ class MainWindow(QMainWindow):
     def cover(self, card, title, ia_identifier=None):
         if not self.start_workers:
             return
-        base = title.split("(")[0].strip()
-        if base in self.covers.results:
-            path = self.covers.results[base]
+        base = artwork_search_title(title)
+        key = (self.console.id, base)
+        if key in self.covers.results:
+            path = self.covers.results[key]
             if path:
                 card.set_cover(str(path))
             return
-        self.covers.request(title, ia_identifier)
+        self.covers.request(title, self.console.id, ia_identifier)
 
     def details(self, game):
         dialog = RemoteDetailsDialog(self, game, self)
@@ -313,6 +419,9 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         self.closing = True
+        if self._page_transition is not None:
+            self._page_transition.cancel()
+            self._page_transition = None
         self.work_cancel.set()
         self.tab_search.cancel.set()
         self.manager.close()
@@ -331,6 +440,7 @@ def main():
     theme.apply(app)
     window = MainWindow(Config.load(args.config))
     window.show()
+    QTimer.singleShot(400, window.start_tutorial_if_needed)
     return app.exec()
 
 

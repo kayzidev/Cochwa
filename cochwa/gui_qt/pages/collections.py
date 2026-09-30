@@ -3,14 +3,12 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
-    QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QListWidgetItem,
-    QMessageBox,
     QPushButton,
     QVBoxLayout,
     QWidget,
@@ -19,6 +17,7 @@ from PySide6.QtWidgets import (
 from cochwa.gui_qt.cards import GameCard
 from cochwa.gui_qt.grid import CardGrid
 from cochwa.gui_qt.widgets import PageHeader
+from cochwa.gui_qt.window_chrome import FramelessDialog, confirm
 from cochwa.services.collections import CollectionStore
 
 
@@ -108,7 +107,7 @@ class CollectionsPage(QWidget):
 
     def edit(self, row=None):
         console = self.app.console
-        dialog = QDialog(self)
+        dialog = FramelessDialog(self)
         dialog.setWindowTitle("Modifier la collection" if row else "Nouvelle collection")
         dialog.resize(540, 520)
         box = QVBoxLayout(dialog)
@@ -162,16 +161,12 @@ class CollectionsPage(QWidget):
 
     def remove(self):
         row = self.choice.currentData()
-        if (
-            row
-            and QMessageBox.question(
-                self,
-                "Supprimer la collection",
-                f"Supprimer « {row['name']} » ? Les jeux et leurs fichiers sont conservés.",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-            == QMessageBox.Yes
+        if row and confirm(
+            self,
+            "Supprimer la collection",
+            f"Supprimer « {row['name']} » ? Les jeux et leurs fichiers sont conservés.",
+            accept_text="Supprimer",
+            danger=True,
         ):
             try:
                 self.store.remove(row["id"])
@@ -179,8 +174,8 @@ class CollectionsPage(QWidget):
             except (OSError, ValueError) as exc:
                 self.app.error(str(exc))
 
-    def _cover(self, base, path):
-        if path:
+    def _cover(self, platform, base, path):
+        if platform == self.app.console.id and path:
             for card in self.grid.cards:
                 if card.base_title == base:
                     card.set_cover(str(path))

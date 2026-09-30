@@ -8,21 +8,24 @@ from pathlib import Path
 from PySide6.QtCore import QUrl
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
-    QDialog,
+    QCheckBox,
     QFileDialog,
     QFormLayout,
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from cochwa.consoles import CONSOLES, DEFAULT_CONSOLE
-from cochwa.gui_qt.widgets import PageHeader, section
+from cochwa.gui_qt.widgets import PageHeader, ResponsiveGrid, section
+from cochwa.gui_qt.window_chrome import FramelessDialog
 
 
 class SettingsPage(QWidget):
@@ -39,7 +42,7 @@ class SettingsPage(QWidget):
                 "PARAMÈTRES",
             )
         )
-        scroll = QScrollArea()
+        scroll = self.scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         body = QWidget()
         content = QVBoxLayout(body)
@@ -48,6 +51,9 @@ class SettingsPage(QWidget):
         self.values = {}
         self.console_panels = {}
         self.console_toggles = {}
+        self.console_stack = QStackedWidget()
+        self.settings_grid = ResponsiveGrid(min_card_width=420)
+        content.addWidget(self.settings_grid)
 
         # Sections console générées depuis le registre : dossier + lanceur.
         # La console par défaut est toujours dépliée ; les autres sont repliées
@@ -95,8 +101,11 @@ class SettingsPage(QWidget):
                     )
                 )
                 self.console_toggles[cid] = toggle
-            panel.setVisible(cid == self.app.console.id)
-            content.addWidget(panel)
+            self.console_stack.addWidget(panel)
+        self.console_stack.setCurrentIndex(
+            next(i for i, console in enumerate(CONSOLES) if console.id == self.app.console.id)
+        )
+        self.settings_grid.add_card(self.console_stack)
 
         panel, box = section(
             "Jaquettes",
@@ -106,12 +115,13 @@ class SettingsPage(QWidget):
         box.addLayout(self._form)
         self._row("key", "Clé SteamGridDB", app.config.steamgrid_api_key, password=True)
         self.values["key"].setPlaceholderText("Facultatif")
-        content.addWidget(panel)
+        self.settings_grid.add_card(panel)
 
         panel, box = section(
             "Métadonnées des jeux · IGDB",
             "IGDB complète automatiquement les fiches affichées. Configurez un Twitch Client ID et un Client Secret créés depuis une application Twitch Developer. Les identifiants restent dans votre configuration locale.",
         )
+        self.igdb_panel = panel
         self._form = self._make_form()
         box.addLayout(self._form)
         self._row("igdb_client_id", "Twitch Client ID", app.config.igdb_client_id)
@@ -137,31 +147,48 @@ class SettingsPage(QWidget):
         self.refresh_catalog_button.clicked.connect(self.refresh_catalogs)
         igdb_actions.addWidget(self.refresh_catalog_button)
         box.addLayout(igdb_actions)
-        self.catalog_status = QLabel("Les catalogues se mettent à jour en arrière-plan.")
+        self.catalog_status = QLabel(
+            "Les catalogues se mettent à jour en arrière-plan."
+            if self.app.catalogs.configured
+            else "Ajoutez vos identifiants Twitch/IGDB pour synchroniser les catalogues."
+        )
         self.catalog_status.setObjectName("muted")
         self.catalog_status.setWordWrap(True)
         box.addWidget(self.catalog_status)
         self.app.catalogs.updated.connect(self._catalog_updated)
         self.app.catalogs.failed.connect(self._catalog_failed)
-        content.addWidget(panel)
+        self.settings_grid.add_card(panel)
 
         panel, box = section(
             "Steam & diagnostic",
             "Préparez les préréglages et synchronisez vos jeux depuis Cochwa. Steam reste à fermer et rouvrir manuellement.",
         )
-        setup = QPushButton("Configurer mes consoles dans Steam")
+        self.steam_panel = panel
+        setup = QPushButton("Configurer Steam")
         setup.setObjectName("primary")
         setup.clicked.connect(self.setup_srm)
-        box.addWidget(setup)
-        actions = QHBoxLayout()
+        actions = QGridLayout()
+        actions.addWidget(setup, 0, 0)
         srm = QPushButton("Ouvrir Steam ROM Manager")
         srm.clicked.connect(self.open_srm)
-        actions.addWidget(srm)
+        actions.addWidget(srm, 1, 0)
         doctor = QPushButton("Diagnostic local")
         doctor.clicked.connect(self.diagnose)
-        actions.addWidget(doctor)
+        actions.addWidget(doctor, 0, 1)
         box.addLayout(actions)
-        content.addWidget(panel)
+        self.settings_grid.add_card(panel)
+        panel, box = section(
+            "Interface",
+            "Les pages changent avec un fondu discret. Ce réglage supprime leur déplacement.",
+        )
+        self.reduce_motion_check = QCheckBox("Réduire les animations")
+        self.reduce_motion_check.setAccessibleName("Réduire les animations de navigation")
+        self.reduce_motion_check.setChecked(app.config.reduce_motion)
+        self.reduce_motion_check.toggled.connect(
+            lambda: self.save_status.setText("Modifications non enregistrées")
+        )
+        box.addWidget(self.reduce_motion_check)
+        self.settings_grid.add_card(panel)
         content.addStretch()
         scroll.setWidget(body)
         layout.addWidget(scroll, stretch=1)
@@ -170,7 +197,7 @@ class SettingsPage(QWidget):
         self.save_status.setObjectName("muted")
         self.save_status.setWordWrap(True)
         footer.addWidget(self.save_status, stretch=1)
-        save = QPushButton("Enregistrer les modifications")
+        save = self.save_button = QPushButton("Enregistrer les modifications")
         save.setObjectName("primary")
         save.clicked.connect(self.save)
         footer.addWidget(save)
@@ -194,8 +221,7 @@ class SettingsPage(QWidget):
 
     def activate(self):
         current = self.app.console.id
-        for cid, panel in self.console_panels.items():
-            panel.setVisible(cid == current)
+        self.console_stack.setCurrentWidget(self.console_panels[current])
         toggle = self.console_toggles.get(current)
         if toggle:
             toggle.setChecked(True)
@@ -302,6 +328,7 @@ class SettingsPage(QWidget):
             config.steamgrid_api_key,
             config.igdb_client_id,
             config.igdb_client_secret,
+            config.reduce_motion,
         )
         try:
             config.console_dirs = dirs
@@ -310,20 +337,34 @@ class SettingsPage(QWidget):
             config.steamgrid_api_key = self.values["key"].text().strip()
             config.igdb_client_id = self.values["igdb_client_id"].text().strip()
             config.igdb_client_secret = self.values["igdb_client_secret"].text().strip()
+            config.reduce_motion = self.reduce_motion_check.isChecked()
             config.save()
             self.app.metadata.configure(config.igdb_client_id, config.igdb_client_secret)
             self.app.catalogs.configure(config.igdb_client_id, config.igdb_client_secret)
             self.refresh_catalog_button.setEnabled(self.app.catalogs.configured)
             self.app.tab_library.ready.refresh()
-            self.app.covers.results.clear()
+            self.app.covers.invalidate()
             self.app.tab_library.refresh()
             self.save_status.setText("✓ Paramètres enregistrés")
             self.app.notify("Paramètres enregistrés", "success")
             if self.app.catalogs.configured:
                 if self.app.catalogs.refresh_if_stale():
                     self.catalog_status.setText("Mise à jour IGDB en arrière-plan…")
+                elif self.app.catalogs.busy:
+                    self.catalog_status.setText("Mise à jour IGDB en arrière-plan…")
                 else:
-                    self.catalog_status.setText("Le catalogue IGDB local est à jour.")
+                    from cochwa.catalog import has_igdb_catalog
+
+                    available = all(
+                        has_igdb_catalog(console.id, config.cache_dir)
+                        for console in CONSOLES
+                        if console.enabled
+                    )
+                    self.catalog_status.setText(
+                        "Catalogues IGDB locaux disponibles."
+                        if available
+                        else "Catalogues IGDB en attente ; vous pouvez relancer leur mise à jour."
+                    )
         except Exception as exc:
             (
                 config.console_dirs,
@@ -332,6 +373,7 @@ class SettingsPage(QWidget):
                 config.steamgrid_api_key,
                 config.igdb_client_id,
                 config.igdb_client_secret,
+                config.reduce_motion,
             ) = previous
             self.app.metadata.configure(config.igdb_client_id, config.igdb_client_secret)
             self.app.catalogs.configure(config.igdb_client_id, config.igdb_client_secret)
@@ -379,7 +421,7 @@ class SettingsPage(QWidget):
         from cochwa.cli import doctor
 
         data = doctor(self.app.config)
-        dialog = QDialog(self)
+        dialog = FramelessDialog(self)
         dialog.setWindowTitle("Diagnostic local")
         dialog.resize(760, 520)
         layout = QVBoxLayout(dialog)

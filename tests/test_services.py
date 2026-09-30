@@ -32,6 +32,17 @@ class ServicesTests(unittest.TestCase):
         self.assertEqual(Config.load(path).ps2_dir, cfg.ps2_dir)
         self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
+    def test_reduce_motion_setting_is_persistent_and_validated(self):
+        path = self.root / "config.toml"
+        cfg = Config.load(path)
+        self.assertFalse(cfg.reduce_motion)
+        cfg.reduce_motion = True
+        cfg.save()
+        self.assertTrue(Config.load(path).reduce_motion)
+        path.write_text('[app]\nreduce_motion = "yes"\n')
+        with self.assertRaisesRegex(ValueError, "reduce_motion"):
+            Config.load(path)
+
     def test_download_dir_optional_and_persistent(self):
         path = self.root / "config.toml"
         cfg = Config.load(path)

@@ -12,7 +12,6 @@ from PySide6.QtWidgets import (
     QHeaderView,
     QLabel,
     QMenu,
-    QMessageBox,
     QProgressBar,
     QPushButton,
     QTableView,
@@ -22,6 +21,7 @@ from PySide6.QtWidgets import (
 
 from cochwa.gui_qt import theme
 from cochwa.gui_qt.widgets import EmptyState, PageHeader
+from cochwa.gui_qt.window_chrome import confirm
 from cochwa.util import human_duration, human_size
 
 # Fenêtre glissante pour la vitesse moyenne (secondes).
@@ -169,14 +169,13 @@ class DownloadsPage(QWidget):
         menu.exec(self.table.viewport().mapToGlobal(position))
 
     def remove(self, key):
-        answer = QMessageBox.question(
+        if confirm(
             self,
             "Supprimer le téléchargement",
             "Retirer ce téléchargement de la liste ?\nUn transfert actif sera arrêté. Les fichiers déjà présents sur disque seront conservés.",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No,
-        )
-        if answer == QMessageBox.Yes:
+            accept_text="Supprimer",
+            danger=True,
+        ):
             self.app.manager.remove(key)
 
     def resume(self, key):

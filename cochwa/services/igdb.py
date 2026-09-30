@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import threading
 import time
 from datetime import UTC, datetime
@@ -13,6 +12,7 @@ from difflib import SequenceMatcher
 from cochwa.infrastructure.http import session
 from cochwa.infrastructure.storage import write_json
 from cochwa.services.relevance import normalized
+from cochwa.util import artwork_search_title
 
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 API_URL = "https://api.igdb.com/v4/games"
@@ -153,6 +153,7 @@ class IGDBClient:
         self.client_secret = config.igdb_client_secret.strip()
         self._token = ""
         self._token_expiry = 0
+        self._catalog_game_types = None
 
     def configure(self, client_id, client_secret):
         self.client_id = client_id.strip()
@@ -239,11 +240,37 @@ class IGDBClient:
                     return item["id"]
         raise ValueError(f"Plateforme IGDB introuvable : {platform_name or platform}")
 
+    def _catalog_type_ids(self):
+        """Résout les identifiants IGDB des jeux complets (game_type est une référence)."""
+        if self._catalog_game_types is None:
+            types = self._query("fields id,type; limit 100;", endpoint="game_types")
+            accepted = {
+                "main game",
+                "remake",
+                "remaster",
+                "port",
+                "standalone expansion",
+                "expanded game",
+                "fork",
+            }
+            self._catalog_game_types = tuple(
+                sorted(
+                    item["id"]
+                    for item in types
+                    if isinstance(item.get("id"), int)
+                    and normalized(item.get("type", "")) in accepted
+                )
+            )
+            if not self._catalog_game_types:
+                raise ValueError("Types de jeux IGDB introuvables")
+        return self._catalog_game_types
+
     def fetch_platform_catalog(self, platform, platform_name=None):
         """Charge le catalogue principal d'une plateforme par pages de 500 jeux."""
         if not self.configured:
             raise ValueError("Configurez les identifiants Twitch/IGDB dans Paramètres.")
         platform_id = self._platform_id(platform, platform_name)
+        game_types = ",".join(map(str, self._catalog_type_ids()))
         rows = []
         last_id = 0
         fields = (
@@ -254,13 +281,17 @@ class IGDBClient:
         while True:
             body = (
                 f"fields {fields}; where platforms = {platform_id} & version_parent = null "
-                f"& game_type = 0 & id > {last_id}; sort id asc; limit 500;"
+                f"& game_type = ({game_types}) & id > {last_id}; "
+                "sort id asc; limit 500;"
             )
             page = self._query(body)
             if not page:
                 break
             rows.extend(entry for game in page if (entry := _catalog_entry(game)))
-            last_id = page[-1]["id"]
+            next_id = page[-1]["id"]
+            if next_id <= last_id:
+                raise ValueError("Pagination IGDB incohérente")
+            last_id = next_id
             if len(page) < 500:
                 break
         return rows
@@ -268,6 +299,11 @@ class IGDBClient:
     def sync_catalog(self, platform, platform_name=None):
         """Rafraîchit le cache de catalogue sur disque, sans toucher à la GUI."""
         rows = self.fetch_platform_catalog(platform, platform_name)
+        unique_titles = {row["title"].casefold() for row in rows}
+        if len(unique_titles) < 20:
+            raise ValueError(
+                f"Catalogue IGDB incomplet pour {platform} : {len(unique_titles)} jeux distincts"
+            )
         path = self.config.cache_dir / "catalogs" / f"igdb-{platform}.json"
         saved = {"time": time.time(), "platform": platform, "source": "IGDB", "games": rows}
         write_json(path, saved)
@@ -277,9 +313,8 @@ class IGDBClient:
         """Retourne le meilleur match probable ou None si le titre est incertain."""
         if not self.configured or not title.strip():
             return None
-        search_title = re.split(r"\s+\(", title.strip(), maxsplit=1)[0].strip()
-        search_title = search_title or title.strip()
-        key = hashlib.sha256(f"{platform}\0{search_title.casefold()}".encode()).hexdigest()
+        search_title = artwork_search_title(title)
+        key = hashlib.sha256(f"v2\0{platform}\0{search_title.casefold()}".encode()).hexdigest()
         cache = self.config.cache_dir / "metadata" / f"igdb-{key}.json"
         try:
             cached = json.loads(cache.read_text())
@@ -304,8 +339,10 @@ class IGDBClient:
             platform_matches = not target_platforms or bool(
                 platforms & {normalized(name) for name in target_platforms}
             )
-            # Prefer a platform match, but tolerate incomplete IGDB platform tags
-            # when the name is an exact match.
+            # Un jeu identifié sur une autre plateforme ne valide pas sa
+            # jaquette pour celle demandée, même si son titre est identique.
+            if target_platforms and platforms and not platform_matches:
+                continue
             score = similarity + (0.15 if platform_matches else -0.15)
             ranked.append((score, similarity, platform_matches, game))
 
@@ -313,7 +350,7 @@ class IGDBClient:
         chosen = None
         if ranked:
             score, similarity, platform_matches, game = ranked[0]
-            if similarity >= 0.84 and (platform_matches or similarity >= 0.98):
+            if similarity >= 0.84 and (platform_matches or (not platforms and similarity >= 0.98)):
                 chosen = _metadata(game)
         write_json(cache, {"time": time.time(), "data": chosen})
         return chosen

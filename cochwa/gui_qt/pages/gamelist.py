@@ -22,6 +22,7 @@ from cochwa.gui_qt import theme
 from cochwa.gui_qt.cards import GameCard
 from cochwa.gui_qt.grid import CardGrid
 from cochwa.gui_qt.widgets import PageHeader
+from cochwa.util import artwork_search_title
 
 
 class GameListPage(QWidget):
@@ -110,7 +111,7 @@ class GameListPage(QWidget):
         installed = set()
         for title in self.app.installed_titles():
             installed.add(title.casefold())
-            installed.add(title.split("(")[0].strip().casefold())
+            installed.add(artwork_search_title(title).casefold())
         selected = self.genre.currentText() if self.genre else ""
         entries = self.entries()
         self._entries = [
@@ -126,7 +127,7 @@ class GameListPage(QWidget):
             installed = set()
             for title in self.app.installed_titles():
                 installed.add(title.casefold())
-                installed.add(title.split("(")[0].strip().casefold())
+                installed.add(artwork_search_title(title).casefold())
         if self.genre:
             start = self.page * self.PAGE_SIZE
             visible_entries = self._entries[start : start + self.PAGE_SIZE]
@@ -137,7 +138,7 @@ class GameListPage(QWidget):
         start = self.page * self.PAGE_SIZE if self.genre else 0
         for offset, entry in enumerate(visible_entries):
             title = entry["title"]
-            base = title.split("(")[0].strip().casefold()
+            base = artwork_search_title(title).casefold()
             is_installed = title.casefold() in installed or base in installed
             badges = []
             if self.genre:
@@ -186,14 +187,14 @@ class GameListPage(QWidget):
             entry = self._visible_entry_by_title.get(title, {})
             self.app.cover(card, title)
             if entry.get("cover_url"):
-                self.app.covers.request_igdb_cover(title, entry["cover_url"])
+                self.app.covers.request_igdb_cover(title, entry["cover_url"], self.app.console.id)
 
     def _catalog_updated(self, _catalogs):
         if self.app.pages.currentWidget() is self:
             self.activate()
 
-    def _on_cover(self, base, path):
-        if not path:
+    def _on_cover(self, platform, base, path):
+        if platform != self.app.console.id or not path:
             return
         for card in self.grid.cards:
             if card.base_title == base:

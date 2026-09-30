@@ -18,18 +18,19 @@ from importlib import resources
 
 from cochwa.config import DEFAULT_CONFIG_DIR
 from cochwa.consoles import get as get_console
-from cochwa.services.igdb import CATALOG_TTL
 
 USER_CATALOG = DEFAULT_CONFIG_DIR / "catalog_ps2.json"
 
 _cache = {"entries": None, "mtime": None}
 _platform_caches = {}
+_igdb_status_cache = {}
 
 
 def clear_catalog_cache():
     """Force la relecture des catalogues après une synchronisation."""
     _cache.update(entries=None, mtime=None)
     _platform_caches.clear()
+    _igdb_status_cache.clear()
 
 
 def _load_packaged(platform="ps2"):
@@ -65,17 +66,25 @@ def _catalog_files(platform, cache_dir=None):
 
 
 def has_igdb_catalog(platform="ps2", cache_dir=None):
-    """Indique si un catalogue IGDB complet a déjà été synchronisé."""
+    """Un ancien catalogue complet reste utilisable pendant son actualisation."""
     _, remote = _catalog_files(platform, cache_dir)
-    if not remote or not remote.is_file():
+    if not remote:
         return False
     try:
+        stamp = remote.stat()
+        cached = _igdb_status_cache.get(remote)
+        signature = (stamp.st_mtime_ns, stamp.st_size)
+        if cached and cached[0] == signature:
+            return cached[1]
         data = json.loads(remote.read_text())
-        return (
-            time.time() - float(data["time"]) < CATALOG_TTL
+        valid = (
+            isinstance(data, dict)
             and isinstance(data.get("games"), list)
-            and bool(data["games"])
+            and len({entry["title"].casefold() for entry in data["games"] if _valid_entry(entry)})
+            >= 20
         )
+        _igdb_status_cache[remote] = (signature, valid)
+        return valid
     except (OSError, ValueError, KeyError, TypeError):
         return False
 
@@ -182,7 +191,11 @@ def recommended_pool(platform="ps2", cache_dir=None):
     """Candidats recommandés ; une sélection de 20 à 30 est affichée."""
     entries = catalog_entries(platform, cache_dir)
     if has_igdb_catalog(platform, cache_dir):
-        return [e for e in entries if e.get("source") == "IGDB"]
+        remote = [e for e in entries if e.get("source") == "IGDB"]
+        if len(remote) >= 20:
+            return remote
+        # Les entrées locales complètent un catalogue IGDB encore parcellaire.
+        return remote + [e for e in entries if e.get("source") != "IGDB"]
     return [e for e in entries if e.get("recommended")]
 
 

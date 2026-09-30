@@ -16,12 +16,19 @@ from PIL import Image
 from cochwa.config import DEFAULT_CACHE_DIR
 from cochwa.infrastructure.http import get_json, session
 from cochwa.infrastructure.storage import atomic_write, write_json
+from cochwa.util import artwork_search_title
 
 SGDB_API = "https://www.steamgriddb.com/api/v2"
 IA_METADATA_URL = "https://archive.org/metadata/{identifier}"
 IA_DOWNLOAD_URL = "https://archive.org/download/{identifier}/{name}"
 CACHE_DIR = DEFAULT_CACHE_DIR / "covers"
 _locks = [threading.Lock() for _ in range(16)]
+
+
+def cover_cache_lock(path):
+    """Verrou partagé entre téléchargement automatique et choix manuel."""
+    return _locks[int(Path(path).stem[:2], 16) % len(_locks)]
+
 
 # Seuils du match assoupli SGDB : titre suffisamment long (les titres courts
 # sont trop ambigus), similarité élevée, et meilleur résultat nettement
@@ -153,14 +160,22 @@ def _ia_cover_url(identifier, cache_dir):
 NEGATIVE_TTL = 86400
 
 
+def cover_cache_path(cache_dir, platform, title):
+    """Cache versionné par plateforme et titre de recherche normalisé."""
+    identity = f"v2\0{platform or ''}\0{artwork_search_title(title).casefold()}"
+    key = hashlib.sha256(identity.encode()).hexdigest()
+    return Path(cache_dir) / f"{key}.png"
+
+
 def _title_variants(title):
     """Variantes de titre pour le match SGDB, de la plus précise à la plus large.
 
     Sans région/parenthèses, puis sans « The » initial (SGDB liste souvent
     « X, The » ou sans article).
     """
-    variants = [title.strip()]
-    base = title.split("(")[0].strip()
+    cleaned = artwork_search_title(title)
+    variants = [cleaned]
+    base = cleaned.split("(")[0].strip()
     if base and base != variants[0]:
         variants.append(base)
     for variant in list(variants):
@@ -170,17 +185,22 @@ def _title_variants(title):
     return [v for v in variants if v and not (v.casefold() in seen or seen.add(v.casefold()))]
 
 
-def download_cover(api_key, game_title, cache_path=None, cache_dir=None, ia_identifier=None):
+def download_cover(
+    api_key, game_title, cache_path=None, cache_dir=None, ia_identifier=None, platform=None
+):
     """Télécharge la jaquette d'un jeu.
 
     Ordre : cache local → SteamGridDB (avec variantes de titre) → jaquette
     dans les fichiers de l'item IA (fallback si ia_identifier fourni et qu'un
     fichier image pertinent existe).
     """
-    key = hashlib.sha256(game_title.casefold().encode()).hexdigest()
-    path = Path(cache_path) if cache_path else Path(cache_dir or CACHE_DIR) / f"{key}.png"
+    path = (
+        Path(cache_path)
+        if cache_path
+        else cover_cache_path(cache_dir or CACHE_DIR, platform, game_title)
+    )
     negative = path.with_suffix(".missing.json")
-    with _locks[int(key[:2], 16) % len(_locks)]:
+    with cover_cache_lock(path):
         if path.exists():
             try:
                 with Image.open(path) as img:
@@ -204,7 +224,11 @@ def download_cover(api_key, game_title, cache_path=None, cache_dir=None, ia_iden
             if grids:
                 url = grids[0].get("url", "")
                 try:
-                    atomic_write(path, _fetch_image(url))
+                    atomic_write(path, _fetch_image(url, portrait=True))
+                    try:
+                        write_json(path.with_suffix(".source.json"), {"source": "sgdb"})
+                    except OSError:
+                        pass
                     negative.unlink(missing_ok=True)
                     return path
                 except (ValueError, OSError):
@@ -218,6 +242,10 @@ def download_cover(api_key, game_title, cache_path=None, cache_dir=None, ia_iden
             if url:
                 try:
                     atomic_write(path, _fetch_image(url, portrait=True))
+                    try:
+                        write_json(path.with_suffix(".source.json"), {"source": "ia"})
+                    except OSError:
+                        pass
                     negative.unlink(missing_ok=True)
                     return path
                 except (ValueError, OSError):

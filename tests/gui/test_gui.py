@@ -12,10 +12,10 @@ import pytest  # noqa: E402
 pytest.importorskip("PySide6")
 pytest.importorskip("pytestqt")
 
-from PySide6.QtCore import QThread  # noqa: E402
+from PySide6.QtCore import QPoint, QRect, Qt, QThread  # noqa: E402
 from PySide6.QtWidgets import QDialog, QPushButton  # noqa: E402
 
-from cochwa.config import Config  # noqa: E402
+from cochwa.config import Config, ProviderConfig  # noqa: E402
 from cochwa.gui_qt.app import MainWindow  # noqa: E402
 from cochwa.models import IAGame, SearchResult  # noqa: E402
 
@@ -24,7 +24,12 @@ from cochwa.models import IAGame, SearchResult  # noqa: E402
 def window(qtbot, tmp_path):
     (tmp_path / "Game.iso").write_bytes(b"image")
     config = Config(
-        ps2_dir=tmp_path, state_dir=Path(tmp_path) / "state", source=Path(tmp_path) / "config.toml"
+        ps2_dir=tmp_path,
+        state_dir=Path(tmp_path) / "state",
+        source=Path(tmp_path) / "config.toml",
+        providers={
+            "ia_redump": ProviderConfig("ia_redump", options={"cache_dir": str(tmp_path / "cache")})
+        },
     )
     win = MainWindow(config, start_workers=False)
     qtbot.addWidget(win)
@@ -52,6 +57,184 @@ def test_console_selector_and_brand(window):
     window.select_console(0)
     assert window.console is DEFAULT_CONSOLE
     assert "PlayStation 2" in window.windowTitle()
+
+
+def test_dialogs_are_frameless(window, qtbot):
+    """Toutes les fenêtres contextuelles de l'app sont sans bordure système."""
+    from cochwa.gui_qt.dialogs import RemoteDetailsDialog
+    from cochwa.gui_qt.srm_dialog import SRMDialog
+    from cochwa.gui_qt.window_chrome import FramelessDialog
+
+    game = IAGame("fixture", "Title", "Title", [], None, 0)
+    for dialog in (SRMDialog(window), RemoteDetailsDialog(window, game, window)):
+        qtbot.addWidget(dialog)
+        assert isinstance(dialog, FramelessDialog)
+        assert dialog.windowFlags() & Qt.FramelessWindowHint
+        assert dialog.windowFlags() & Qt.Dialog
+        assert dialog.objectName() == "framelessDialog"
+
+
+def test_confirm_dialog_defaults_to_cancel(window, qtbot, monkeypatch):
+    from cochwa.gui_qt import window_chrome
+
+    created = {}
+
+    def fake_exec(self):
+        created["dialog"] = self
+        return QDialog.DialogCode.Rejected
+
+    monkeypatch.setattr(window_chrome.FramelessDialog, "exec", fake_exec)
+    accepted = window_chrome.confirm(
+        window,
+        "Supprimer la collection",
+        "Supprimer « Test » ?",
+        accept_text="Supprimer",
+        danger=True,
+    )
+    assert not accepted
+    dialog = created["dialog"]
+    assert dialog.windowFlags() & Qt.FramelessWindowHint
+    buttons = dialog.findChildren(QPushButton)
+    assert [button.text() for button in buttons] == ["Annuler", "Supprimer"]
+    assert buttons[0].isDefault()
+    assert buttons[1].objectName() == "danger"
+
+    monkeypatch.setattr(
+        window_chrome.FramelessDialog, "exec", lambda self: QDialog.DialogCode.Accepted
+    )
+    assert window_chrome.confirm(
+        window, "Conversion en masse", "Convertir ?", accept_text="Convertir"
+    )
+
+
+def test_frameless_titlebar_controls_and_resize_edges(window, qtbot):
+    assert window.windowFlags() & Qt.FramelessWindowHint
+    titlebar = window.title_bar
+    assert titlebar.caption.text() == window.windowTitle()
+    assert titlebar.maximize_button.accessibleName() == "Agrandir la fenêtre"
+    assert titlebar.close_button.accessibleName() == "Fermer la fenêtre"
+    assert all(
+        button.focusPolicy() == Qt.StrongFocus
+        for button in (titlebar.minimize_button, titlebar.maximize_button, titlebar.close_button)
+    )
+
+    for size in ((800, 600), (1280, 860)):
+        window.resize(*size)
+        assert window.size().width() == size[0]
+        assert window.size().height() == size[1]
+        for handle, _ in window._resize_handles:
+            assert window.rect().contains(handle.geometry())
+
+    qtbot.mouseClick(titlebar.maximize_button, Qt.LeftButton)
+    assert window.isMaximized()
+    assert titlebar.maximize_button.accessibleName() == "Restaurer la fenêtre"
+    assert all(not handle.isVisible() for handle, _ in window._resize_handles)
+    qtbot.mouseDClick(titlebar, Qt.LeftButton)
+    assert not window.isMaximized()
+    assert all(handle.isVisible() for handle, _ in window._resize_handles)
+
+
+def test_cover_memory_isolated_by_platform(window):
+    window.covers.request("Shared Game", "ps2")
+    window.covers.request("Shared Game", "switch")
+    assert ("ps2", "Shared Game") in window.covers.results
+    assert ("switch", "Shared Game") in window.covers.results
+
+
+def test_manual_cover_is_loaded_without_provider_key(window):
+    from PIL import Image
+
+    from cochwa.api.steamgriddb import cover_cache_path
+
+    path = cover_cache_path(window.config.cache_dir / "covers", "ps2", "Shared Game")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    Image.new("RGB", (3, 5), "red").save(path)
+    path.with_suffix(".source.json").write_text('{"source":"manual"}')
+    window.covers.request("Shared Game", "ps2")
+    assert window.covers.results[("ps2", "Shared Game")] == path
+    assert window.covers.sources[("ps2", "Shared Game")] == "manual"
+
+
+def test_igdb_cover_replaces_text_match_but_preserves_manual_choice(window, tmp_path):
+    from cochwa.api.steamgriddb import cover_cache_path
+
+    key = ("switch", "Shared Game")
+    cover = cover_cache_path(tmp_path, *key)
+    window.covers.results[key] = cover
+    window.covers.sources[key] = "sgdb_or_ia"
+    url = "https://images.igdb.com/igdb/image/upload/t_cover_big/example.jpg"
+
+    def run_now(work, done, _error=None):
+        done(work())
+
+    with (
+        patch.object(window.covers.worker, "submit", side_effect=run_now),
+        patch("cochwa.api.steamgriddb.cover_cache_path", return_value=cover),
+        patch("cochwa.api.steamgriddb._fetch_image", return_value=b"igdb-image") as fetch,
+    ):
+        window.covers.request_igdb_cover("Shared Game", url, "switch")
+        assert window.covers.sources[key] == "igdb"
+        assert cover.read_bytes() == b"igdb-image"
+        window.covers.sources[key] = "manual"
+        window.covers.request_igdb_cover("Shared Game", url, "switch")
+        fetch.assert_called_once()
+
+
+def test_platform_menu_keyboard_animation_and_screen_bounds(window, qtbot):
+    selector = window.console_box
+    window.resize(800, 600)
+    qtbot.mouseClick(selector, Qt.LeftButton)
+    menu = selector.menu
+    assert menu.isVisible()
+    assert menu.parentWidget() is window
+    assert menu.animation.duration() == 180
+    assert menu._travel == 6
+    menu_global = QRect(menu.mapToGlobal(QPoint(0, 0)), menu.size())
+    selector_bottom = selector.mapToGlobal(QPoint(0, selector.height()))
+    assert abs(menu_global.left() - selector_bottom.x()) <= 12
+    assert 0 <= menu_global.top() - selector_bottom.y() <= 12
+    assert selector.screen().availableGeometry().contains(menu_global)
+    assert menu.items.currentRow() == 0
+    qtbot.keyClick(menu.items, Qt.Key_Down)
+    assert menu.items.currentRow() == 1
+    qtbot.keyClick(menu.items, Qt.Key_Return)
+    assert window.console.id == "switch"
+    qtbot.waitUntil(lambda: not menu.isVisible(), timeout=1000)
+
+    qtbot.keyClick(selector, Qt.Key_Space)
+    assert menu.isVisible()
+    qtbot.keyClick(menu.items, Qt.Key_Up)
+    assert menu.items.currentRow() == 0
+    qtbot.keyClick(menu.items, Qt.Key_Escape)
+    assert window.console.id == "switch"
+    qtbot.waitUntil(lambda: not menu.isVisible(), timeout=1000)
+
+    window.config.reduce_motion = True
+    qtbot.keyClick(selector, Qt.Key_Return)
+    assert menu.isVisible()
+    assert menu._travel == 0
+    first_item = menu.items.visualItemRect(menu.items.item(0)).center()
+    qtbot.mouseClick(menu.items.viewport(), Qt.LeftButton, pos=first_item)
+    assert window.console.id == "ps2"
+    qtbot.waitUntil(lambda: not menu.isVisible(), timeout=1000)
+
+
+def test_platform_menu_disabled_items_and_long_list(window, qtbot):
+    selector = window.console_box
+    for index in range(24):
+        selector.addItem(f"Console future {index + 1}")
+        selector.model().item(selector.count() - 1).setEnabled(False)
+    window.resize(800, 600)
+    selector.showPopup()
+    menu = selector.menu
+    menu_global = QRect(menu.mapToGlobal(QPoint(0, 0)), menu.size())
+    assert selector.screen().availableGeometry().contains(menu_global)
+    assert menu.items.verticalScrollBar().maximum() > 0
+    menu.choose(2)
+    assert window.console.id == "ps2"
+    assert menu.isVisible()
+    qtbot.keyClick(menu.items, Qt.Key_Escape)
+    qtbot.waitUntil(lambda: not menu.isVisible(), timeout=1000)
 
 
 def test_switch_library_uses_console_settings(window, tmp_path):
@@ -96,6 +279,119 @@ def test_support_page_links(window):
     assert any("Ryubing" in b for b in buttons)
     assert any("Steam ROM Manager" in b for b in buttons)
     assert any("GitHub" in b for b in buttons)
+
+
+def test_settings_and_support_use_responsive_cards(window, qtbot):
+    window.navigate("settings")
+    window.resize(1280, 860)
+    qtbot.wait(30)
+    assert window.tab_settings.settings_grid.columns == 2
+    window.resize(800, 600)
+    qtbot.wait(30)
+    assert window.tab_settings.settings_grid.columns == 1
+
+
+def test_central_page_cross_dissolve_is_interruptible_and_respects_setting(window, qtbot):
+    sidebar_position = window.sidebar.pos()
+    window.navigate("tools")
+    first = window._page_transition
+    assert first is not None
+    assert first.parentWidget() is window.pages
+    assert first.duration_ms == 200
+    assert first.travel_px == 8
+    assert window.sidebar.pos() == sidebar_position
+
+    window.navigate("settings")
+    assert first._done
+    assert window.pages.currentWidget() is window.tab_settings
+    assert window._page_transition is not first
+    qtbot.waitUntil(lambda: window._page_transition is None, timeout=1000)
+
+    window.tab_settings.reduce_motion_check.setChecked(True)
+    window.tab_settings.save()
+    assert window.config.reduce_motion
+    assert Config.load(window.config.source).reduce_motion
+    window.navigate("support")
+    reduced = window._page_transition
+    assert reduced is not None and reduced.travel_px == 0
+    qtbot.waitUntil(lambda: window._page_transition is None, timeout=1000)
+
+
+def test_first_launch_tutorial_can_be_skipped_and_replayed(window, qtbot):
+    assert not window.tutorial_seen()
+    window.start_tutorial_if_needed()
+    overlay = window._tutorial
+    assert overlay is not None and overlay.isVisible()
+    overlay.show_step(2)
+    qtbot.wait(30)
+    assert window.pages.currentWidget() is window.tab_tools
+    assert overlay.page_label.text() == "PAGE OUTILS"
+    assert overlay.navigation_highlight.width() > 0
+    overlay.show_step(5)
+    qtbot.wait(30)
+    assert window.pages.currentWidget() is window.tab_settings
+    assert overlay.page_label.text() == "PAGE PARAMÈTRES"
+    assert overlay.highlight.width() > 0
+    overlay.skip.click()
+    assert window.tutorial_seen()
+    assert window._tutorial is None
+    window.start_tutorial_if_needed()
+    assert window._tutorial is None
+    window.navigate("support")
+    window.start_tutorial()
+    assert window._tutorial is not None
+    window._tutorial.finish(skipped=True)
+
+
+def test_igdb_refresh_is_automatic_and_throttled(window, tmp_path):
+    from cochwa.config import ProviderConfig
+
+    window.config.providers["ia_redump"] = ProviderConfig(
+        "ia_redump", options={"cache_dir": str(tmp_path / "igdb-cache")}
+    )
+    window.catalogs.configure("client-id", "client-secret")
+    with patch.object(window.catalogs, "refresh_all", return_value=True) as refresh:
+        assert window.catalogs.refresh_if_stale()
+        refresh.assert_called_once_with(["ps2", "switch"])
+        assert not window.catalogs.refresh_if_stale()
+        refresh.assert_called_once()
+
+
+def test_switch_top_pages_all_igdb_scored_games(window, tmp_path):
+    import time
+
+    from cochwa.catalog import clear_catalog_cache
+    from cochwa.config import ProviderConfig
+    from cochwa.infrastructure.storage import write_json
+
+    cache = tmp_path / "igdb-cache"
+    window.config.providers["ia_redump"] = ProviderConfig(
+        "ia_redump", options={"cache_dir": str(cache)}
+    )
+    write_json(
+        cache / "catalogs" / "igdb-switch.json",
+        {
+            "time": time.time(),
+            "games": [
+                {
+                    "title": f"Rated Switch Game {index}",
+                    "genre": "Action",
+                    "source": "IGDB",
+                    "score": 90 - index // 10,
+                    "critic_score": 90 - index / 10,
+                }
+                for index in range(75)
+            ],
+        },
+    )
+    clear_catalog_cache()
+    window.select_console(1)
+    window.navigate("top")
+    assert len(window.tab_top._entries) == 75
+    assert len(window.tab_top.grid.cards) == 60
+    assert window.tab_top.next.isEnabled()
+    window.tab_top.next.click()
+    assert len(window.tab_top.grid.cards) == 15
 
 
 def test_tabs_and_responsive_grid(window, qtbot):
@@ -282,12 +578,10 @@ def test_platform_navigation_and_search_state_are_isolated(window):
 
 
 def test_download_delete_button_uses_selected_task(window):
-    from PySide6.QtWidgets import QMessageBox
-
     row = dict(id="remove-me", title="Game", status="completed", progress=10, total=10, error="")
     with (
         patch.object(window.store, "list", return_value=[row]),
-        patch.object(QMessageBox, "question", return_value=QMessageBox.Yes),
+        patch("cochwa.gui_qt.pages.downloads.confirm", return_value=True),
         patch.object(window.manager, "remove") as remove,
     ):
         page = window.tab_downloads

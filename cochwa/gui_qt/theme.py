@@ -53,7 +53,41 @@ ASSETS = (Path(__file__).parent / "assets").as_posix()
 
 QSS = f"""
 QMainWindow, QDialog, QWidget {{ background: {BG}; color: {TEXT}; font-size: 13px; }}
+QWidget#windowTitleBar {{ background: {PANEL}; border-bottom: 1px solid #282C3B; }}
+QLabel#windowCaption {{ color: #CFD2DE; font-size: 12px; font-weight: 600; }}
+QPushButton#titleMinimize, QPushButton#titleMaximize, QPushButton#titleClose {{
+    background: transparent; color: {MUTED}; border: 1px solid transparent;
+    border-radius: 7px; padding: 0; font-size: 19px; font-weight: 500;
+}}
+QPushButton#titleMinimize:hover, QPushButton#titleMaximize:hover {{
+    background: {CARD_HOVER}; color: {TEXT}; border-color: {BORDER};
+}}
+QPushButton#titleClose:hover {{ background: #692D38; color: #FFFFFF; border-color: {DANGER}; }}
+QPushButton#titleMinimize:pressed, QPushButton#titleMaximize:pressed {{
+    background: {ACCENT_DARK}; color: {TEXT};
+}}
+QPushButton#titleClose:pressed {{ background: #9E3546; color: #FFFFFF; }}
+QPushButton#titleMinimize:focus, QPushButton#titleMaximize:focus,
+QPushButton#titleClose:focus {{ border: 2px solid #BFB6FF; color: {TEXT}; }}
 QWidget#sidepanel {{ background: {PANEL}; border-right: 1px solid #282C3B; }}
+QWidget#platformArea {{ background: #32262C; border: 2px solid {SECONDARY}; border-radius: 12px; }}
+QWidget#tutorialOverlay {{ background: transparent; }}
+QWidget#pageTransition {{ background: transparent; }}
+QWidget#tutorialCard {{ background: {PANEL}; border: 1px solid {SECONDARY}; border-radius: 12px; }}
+QLabel#tutorialPage {{ color: {SECONDARY}; font-size: 13px; font-weight: 700; letter-spacing: 1px; }}
+QLabel#platformEyebrow {{ color: {SECONDARY}; font-size: 11px; font-weight: 700; letter-spacing: 1px; }}
+QComboBox#consoleSelect {{ background: {SECONDARY}; color: {BG}; border: 1px solid {SECONDARY};
+    border-radius: 8px; font-size: 16px; font-weight: 700; min-height: 36px; padding: 5px 10px; }}
+QComboBox#consoleSelect:hover {{ background: #FF9989; border-color: #FF9989; }}
+QComboBox#consoleSelect:focus {{ border: 2px solid #FFD3CC; }}
+QComboBox#consoleSelect::drop-down {{ width: 28px; border: none; }}
+QComboBox#consoleSelect::down-arrow {{ image: url("{ASSETS}/chevron-dark.svg"); width: 12px; height: 12px; }}
+QComboBox#consoleSelect QAbstractItemView {{ font-size: 15px; }}
+QWidget#platformMenu {{ background: transparent; }}
+QFrame#platformMenuPanel {{ background: {PANEL}; border: 1px solid #504756; border-radius: 14px; }}
+QListWidget#platformMenuItems {{ background: transparent; border: none; outline: none; padding: 0; }}
+QListWidget#platformMenuItems::item {{ border: none; color: {TEXT}; }}
+QListWidget#platformMenuItems::item:hover, QListWidget#platformMenuItems::item:selected {{ color: {TEXT}; }}
 QLabel {{ background: transparent; border: none; }}
 QLabel#brand {{ font-size: 25px; font-weight: 700; letter-spacing: -1px; }}
 QLabel#eyebrow {{ color: #B4AAFF; font-size: 10px; font-weight: 600; letter-spacing: 2px; }}

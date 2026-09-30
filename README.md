@@ -16,6 +16,7 @@ Nintendo Switch.
 - Télécharger et vérifier des fichiers proposés par Internet Archive.
 - Repérer vos émulateurs, enregistrer leur emplacement et les lancer depuis Cochwa.
 - Utiliser IGDB en option pour enrichir le catalogue et ses métadonnées.
+- Découvrir les fonctions principales avec le tutoriel du premier lancement, rejouable depuis Support.
 - Piloter les fonctions principales depuis le terminal.
 
 ## Cochwa n’héberge aucun jeu
@@ -89,7 +90,9 @@ wrapper du projet, ajoutez `--cli`, par exemple `./run.sh --cli doctor`.
 IGDB peut fournir des informations et des notes de critiques lorsque vous
 configurez l’accès dans les paramètres. Les classements indiquent la source de
 leurs notes ; une note IGDB n’est pas un score Metacritic. Les recommandations
-et les résultats dépendent du catalogue disponible pour la plateforme.
+et les résultats dépendent du catalogue disponible pour la plateforme. Pour
+obtenir le Top Switch complet, renseignez vos identifiants IGDB ; une sélection
+locale reste disponible pendant la première synchronisation.
 
 ## Aide et contributions
 

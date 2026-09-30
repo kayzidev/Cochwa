@@ -91,6 +91,7 @@ class Config:
         steamgrid_api_key="",
         igdb_client_id="",
         igdb_client_secret="",
+        reduce_motion=False,
         srm_flatpak="com.steamgriddb.steam-rom-manager",
         providers=None,
         state_dir=None,
@@ -118,6 +119,7 @@ class Config:
         self.steamgrid_api_key = steamgrid_api_key
         self.igdb_client_id = igdb_client_id
         self.igdb_client_secret = igdb_client_secret
+        self.reduce_motion = reduce_motion
         self.srm_flatpak = srm_flatpak
         self.providers = (
             providers
@@ -237,6 +239,10 @@ class Config:
         download_dir = value("roms", "download_dir", "").strip()
         cfg.download_dir = Path(download_dir).expanduser().absolute() if download_dir else None
         cfg.state_dir = Path(value("app", "state_dir", str(cfg.state_dir))).expanduser().absolute()
+        reduce_motion = data.get("app", {}).get("reduce_motion", False)
+        if type(reduce_motion) is not bool:
+            raise ValueError("app.reduce_motion doit être un booléen")
+        cfg.reduce_motion = reduce_motion
         cfg.steam_method = value("steam", "method", "srm")
         if cfg.steam_method != "srm":
             raise ValueError("Seule la méthode Steam srm est prise en charge")
@@ -310,6 +316,7 @@ class Config:
                 app.pop(f"{cid}_launcher", None)
         app.pop("launcher", None)  # alias legacy migré vers <id>_launcher
         app["state_dir"] = str(self.state_dir)
+        app["reduce_motion"] = self.reduce_motion
         data["providers"] = {
             name: {"enabled": p.enabled, **p.options} for name, p in self.providers.items()
         }

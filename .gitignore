@@ -87,3 +87,4 @@ PlancheGraphique.png
 # --- Markdown supplémentaire (privé — seul le README public reste visible) ---
 *.md
 !/README.md
+!/AGENTS.md
