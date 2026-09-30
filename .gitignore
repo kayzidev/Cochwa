@@ -1,13 +1,62 @@
+# --- Python ---
 __pycache__/
 *.py[cod]
-.venv/
+*$py.class
 *.egg-info/
 build/
 dist/
+.eggs/
+*.whl
+
+# --- Environnements / outils ---
+.venv/
+venv/
+env/
 .ruff_cache/
 .pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# --- Application Cochwa : caches, états et fichiers temporaires ---
+# Config utilisateur (jamais dans le repo — contient clés SGDB, chemins locaux).
+config.toml
+# Marqueurs de téléchargement en cours et manifestes pending.
 *.part
 *.part.json
+*.pending.json
+# Index et état sqlite locaux (régénérables).
 *.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
+*.sqlite3-shm
+# Caches disque de l'app (metadata IA, jaquettes, datfile).
+.cache/
+cochwa_cache/
+
+# --- Secrets / identifiants ---
 .env
-config.toml
+.env.*
+!.env.example
+*.pem
+*.key
+
+# --- Éditeurs / IDE ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.cursor/settings.json
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Sauvegardes et conflits ---
+*.bak
+*.orig
+*.rej
