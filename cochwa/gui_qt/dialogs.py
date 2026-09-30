@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import subprocess
 import webbrowser
+from html import escape
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
@@ -18,9 +19,11 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
+    QTextBrowser,
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from cochwa.api.redump import get_datfile
 from cochwa.gui_qt.widgets import PageHeader
@@ -28,6 +31,91 @@ from cochwa.infrastructure.storage import atomic_write
 from cochwa.services.conversion import convert_chd
 from cochwa.services.library import launch, verify_manifest
 from cochwa.util import human_size
+
+
+def _igdb_html(metadata):
+    """Présente l'ensemble des champs IGDB récupérés, avec liens échappés."""
+    if not metadata:
+        return "Aucune correspondance IGDB fiable pour ce titre."
+    rows = []
+
+    def row(label, value):
+        if value:
+            rows.append(f"<b>{escape(label)} :</b> {escape(str(value))}")
+
+    row("Type", metadata.get("game_type"))
+    row("Plateformes", ", ".join(metadata.get("platforms", [])))
+    row("Première sortie", metadata.get("release_date"))
+    releases = metadata.get("release_dates", [])
+    if releases:
+        row(
+            "Sorties par plateforme",
+            "; ".join(
+                " · ".join(
+                    part for part in (r.get("platform"), r.get("date"), r.get("region")) if part
+                )
+                for r in releases
+            ),
+        )
+    for label, key in (
+        ("Genres", "genres"),
+        ("Développeurs", "developers"),
+        ("Éditeurs", "publishers"),
+        ("Modes de jeu", "modes"),
+        ("Perspectives", "perspectives"),
+        ("Thèmes", "themes"),
+        ("Moteurs", "engines"),
+        ("Franchises", "franchises"),
+        ("Collections", "collections"),
+    ):
+        row(label, ", ".join(metadata.get(key, [])))
+    ratings = metadata.get("age_ratings", [])
+    row(
+        "Classifications",
+        ", ".join(f"{r.get('organization')}: {r.get('rating')}" for r in ratings),
+    )
+    row("Note utilisateurs IGDB", metadata.get("rating"))
+    row("Note critiques IGDB", metadata.get("critic_rating"))
+    row("Résumé", metadata.get("summary"))
+    row("Scénario", metadata.get("storyline"))
+    if metadata.get("cover_url"):
+        url = escape(metadata["cover_url"], quote=True)
+        rows.append(f'<b>Jaquette :</b> <a href="{url}">ouvrir l’image IGDB</a>')
+    websites = metadata.get("websites", [])
+    if websites:
+        links = " · ".join(
+            f'<a href="{escape(url, quote=True)}">{escape(url)}</a>' for url in websites
+        )
+        rows.append(f"<b>Sites :</b> {links}")
+    game_url = escape(metadata.get("url", "https://www.igdb.com/"), quote=True)
+    rows.append(f'<a href="{game_url}">Données fournies par IGDB.com</a>')
+    return "<br>".join(rows)
+
+
+def _igdb_view(layout, app, title, platform):
+    view = QTextBrowser()
+    view.setOpenExternalLinks(True)
+    view.setReadOnly(True)
+    view.setMaximumHeight(150)
+    view.setAccessibleName("Métadonnées du jeu fournies par IGDB")
+    view.setHtml("Chargement des métadonnées IGDB…")
+    layout.addWidget(view)
+
+    def update(metadata):
+        if isValid(view):
+            view.setHtml(
+                _igdb_html(metadata)
+                if metadata
+                else (
+                    "Configurez votre Twitch Client ID et Client Secret dans Paramètres pour "
+                    "activer l’enrichissement IGDB."
+                    if not app.metadata.client.configured
+                    else _igdb_html(None)
+                )
+            )
+
+    app.metadata.request(title, platform, update)
+    return view
 
 
 class RemoteDetailsDialog(QDialog):
@@ -52,6 +140,7 @@ class RemoteDetailsDialog(QDialog):
         info.setObjectName("muted")
         info.setWordWrap(True)
         layout.addWidget(info)
+        _igdb_view(layout, app, game.clean_title, game.platform)
 
         if game.external:
             minerva = game.source == "minerva"
@@ -214,6 +303,7 @@ class LocalDetailsDialog(QDialog):
                 "DANS VOTRE BIBLIOTHÈQUE",
             )
         )
+        _igdb_view(layout, app, game.title, self.console.id)
         main_actions = QHBoxLayout()
         play = QPushButton("▶  Jouer")
         play.setObjectName("primary")

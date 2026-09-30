@@ -49,7 +49,7 @@ cochwa --json doctor
 
 `--all` sélectionne explicitement tous les fichiers d'un item, y compris ses différentes éditions. `--chd --media cd|dvd` permet la conversion après un téléchargement CLI. `--enqueue` enregistre seulement la tâche ; la GUI ou `jobs run` l'exécute. `--json`, `--config` et `--verbose` précèdent la commande. Codes : 0 succès, 1 échec d'opération, 2 arguments/configuration invalides, 130 interruption.
 
-La recherche interroge les sources activées en parallèle. MiNERVA ouvre une fiche torrent à utiliser dans un client externe ; la file de téléchargement Cochwa reste réservée à Internet Archive. `--limit` s’applique par source. Voir [les sources et filtres](docs/SOURCES.md) pour la configuration, les vérifications et les limites de déduplication.
+La recherche interroge les sources activées en parallèle. MiNERVA ouvre une fiche torrent à utiliser dans un client externe ; la file de téléchargement Cochwa reste réservée à Internet Archive. `--limit` s’applique par source.
 
 ## Interface par plateforme
 
@@ -106,11 +106,9 @@ cochwa/
   cli.py                # commandes du même cœur applicatif
 tests/                  # régressions métier, CLI et GUI
 .github/workflows/      # validation automatique
-docs/                  # architecture, migration, audit et historique
+docs/                  # architecture et notes internes (non publiées)
 tools/                 # contrôles manuels ciblés
 ```
-
-Voir [l'architecture](docs/ARCHITECTURE.md), [la migration 0.1 → 0.2](docs/MIGRATION.md) et [le suivi de l'audit](docs/AUDIT_STATUS.md). Pour reprendre avec une IA, lire d'abord [CURRENT_STATE.md](CURRENT_STATE.md) : il évite de recharger l'historique entier.
 
 ### Collections et émulateurs
 
@@ -122,4 +120,4 @@ chemin et propose l’ouverture depuis **Prêt à jouer** dans la bibliothèque.
 Les binaires accessibles dans le PATH et les déploiements Flatpak usuels sont détectés.
 Les lanceurs PS2/Switch existants restent en place ; leur réglage reste accessible
 depuis la fiche de l’émulateur. Le catalogue couvre d’autres consoles, tandis que
-la gestion intégrée des ROMs reste PS2/Switch. [Catalogue et limites](docs/EMULATORS.md).
+la gestion intégrée des ROMs reste PS2/Switch.

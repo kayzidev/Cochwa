@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from cochwa.gui_qt.cards import GameCard
 from cochwa.gui_qt.grid import CardGrid
@@ -251,7 +252,20 @@ class SearchPage(QWidget):
             )
             self.grid.add(card, index=i)
             self.app.cover(
-                card, game.clean_title, ia_identifier=None if game.external else game.identifier
+                card,
+                game.clean_title,
+                ia_identifier=None if game.external else game.identifier,
+            )
+
+            def apply_metadata(metadata, target=card, game_title=game.clean_title):
+                if metadata and isValid(target):
+                    target.set_igdb_metadata(metadata)
+                    self.app.covers.request_igdb_cover(game_title, metadata.get("cover_url", ""))
+
+            self.app.metadata.request(
+                game.clean_title,
+                game.platform,
+                apply_metadata,
             )
         self.grid.set_empty(
             "" if result.games else "Essayez un titre plus court ou retirez certains filtres.",

@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from shiboken6 import isValid
 
 from cochwa.gui_qt import theme
 from cochwa.gui_qt.cards import GameCard
@@ -243,6 +244,17 @@ class LibraryPage(QWidget):
             )
             self.grid.add(card, index=i)
             self.app.cover(card, title)
+
+            def apply_metadata(metadata, target=card, game_title=title):
+                if metadata and isValid(target):
+                    target.set_igdb_metadata(metadata)
+                    self.app.covers.request_igdb_cover(game_title, metadata.get("cover_url", ""))
+
+            self.app.metadata.request(
+                title,
+                console.id,
+                apply_metadata,
+            )
         if games:
             self.grid.set_empty("")
         elif self.query.text():

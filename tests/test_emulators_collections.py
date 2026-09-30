@@ -4,7 +4,31 @@ import pytest
 
 from cochwa.config import Config
 from cochwa.services.collections import CollectionStore
-from cochwa.services.emulators import EmulatorRegistry
+from cochwa.services.emulator_filters import PLATFORMS, filter_emulators
+from cochwa.services.emulators import EmulatorRegistry, catalog
+
+
+def test_emulator_facets_combine_on_the_same_platform_and_sort_by_brand():
+    items = catalog()
+    assert {platform for item in items for platform in item["platforms"]} <= PLATFORMS.keys()
+    assert [
+        item["id"] for item in filter_emulators(items, manufacturer="Sony", processor="128 bits")
+    ] == ["pcsx2"]
+    assert [
+        item["id"] for item in filter_emulators(items, manufacturer="Microsoft", processor="x86")
+    ] == ["xemu"]
+    assert "ares" in {
+        item["id"]
+        for item in filter_emulators(
+            items, manufacturer="Nintendo", decade=1990, processor="64 bits"
+        )
+    }
+    assert "ares" not in {
+        item["id"]
+        for item in filter_emulators(items, manufacturer="Sega", decade=1990, processor="64 bits")
+    }
+    assert [item["id"] for item in filter_emulators(items, platform="GameCube")] == ["dolphin"]
+    assert [item["id"] for item in filter_emulators(items)[:3]] == ["mame", "xemu", "xenia"]
 
 
 def test_emulator_manual_path_roundtrip_and_shell_free_launch(tmp_path):

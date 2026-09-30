@@ -40,7 +40,7 @@ from cochwa.gui_qt.pages.support import SupportPage
 from cochwa.gui_qt.pages.tools import ToolsPage
 from cochwa.gui_qt.toasts import ToastManager
 from cochwa.gui_qt.widgets import brand_icon, brand_pixmap, navigation_icon
-from cochwa.gui_qt.workers import CoverService, Worker
+from cochwa.gui_qt.workers import CoverService, GameMetadataService, Worker
 from cochwa.services.index import LibraryIndex
 from cochwa.services.jobs import DownloadManager, JobStore
 from cochwa.services.maintenance import purge_quietly
@@ -69,6 +69,7 @@ class MainWindow(QMainWindow):
 
         self.worker = Worker(self)
         self.covers = CoverService(self.config, self)
+        self.metadata = GameMetadataService(self.config, self)
         self.search = SearchService(self.config)
         self.index = LibraryIndex(self.config.state_dir / "library.sqlite3")
         self.store = JobStore(self.config.state_dir)

@@ -47,7 +47,7 @@ class ProviderConfig:
 
     @property
     def ia_collections(self):
-        """Collections IA de confiance, boostées au classement (voir docs/SOURCES.md)."""
+        """Collections IA de confiance, boostées au classement."""
         return list(self.options.get("ia_collections", []))
 
 
@@ -89,6 +89,8 @@ class Config:
         download_dir=None,
         steam_method="srm",
         steamgrid_api_key="",
+        igdb_client_id="",
+        igdb_client_secret="",
         srm_flatpak="com.steamgriddb.steam-rom-manager",
         providers=None,
         state_dir=None,
@@ -114,6 +116,8 @@ class Config:
         self.download_dir = Path(download_dir) if download_dir is not None else None
         self.steam_method = steam_method
         self.steamgrid_api_key = steamgrid_api_key
+        self.igdb_client_id = igdb_client_id
+        self.igdb_client_secret = igdb_client_secret
         self.srm_flatpak = srm_flatpak
         self.providers = (
             providers
@@ -200,7 +204,7 @@ class Config:
         with path.open("rb") as stream:
             data = tomllib.load(stream)
         cfg = cls(source=path)
-        for section in ("roms", "steam", "app", "providers"):
+        for section in ("roms", "steam", "igdb", "app", "providers"):
             if not isinstance(data.get(section, {}), dict):
                 raise ValueError(f"Section {section} invalide")
 
@@ -238,6 +242,8 @@ class Config:
             raise ValueError("Seule la méthode Steam srm est prise en charge")
         cfg.steamgrid_api_key = value("steam", "steamgrid_api_key", "")
         cfg.srm_flatpak = value("steam", "srm_flatpak", cfg.srm_flatpak)
+        cfg.igdb_client_id = value("igdb", "client_id", "")
+        cfg.igdb_client_secret = value("igdb", "client_secret", "")
         for name, options in data.get("providers", {}).items():
             if not isinstance(options, dict):
                 raise ValueError(f"Provider {name} invalide")
@@ -291,6 +297,10 @@ class Config:
             method=self.steam_method,
             steamgrid_api_key=self.steamgrid_api_key,
             srm_flatpak=self.srm_flatpak,
+        )
+        data.setdefault("igdb", {}).update(
+            client_id=self.igdb_client_id,
+            client_secret=self.igdb_client_secret,
         )
         app = data.setdefault("app", {})
         for cid, script in self.console_launchers.items():

@@ -1,4 +1,4 @@
-"""Identité Cochwa : tokens issus de PlancheGraphique.png."""
+"""Identité Cochwa : tokens graphiques centralisés."""
 
 from pathlib import Path
 

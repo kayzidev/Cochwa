@@ -158,6 +158,7 @@ def doctor(config, console_id=None):
         "pyside6": bool(importlib.util.find_spec("PySide6")),
         "pillow": bool(importlib.util.find_spec("PIL")),
         "artwork_key_configured": bool(config.steamgrid_api_key),
+        "igdb_configured": bool(config.igdb_client_id and config.igdb_client_secret),
         "cache": str(config.cache_dir),
         "redump_cache_exists": (config.cache_dir / "ps2_datfile.json").is_file(),
         "state": str(config.state_dir),

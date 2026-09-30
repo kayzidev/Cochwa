@@ -138,6 +138,7 @@ class GameCard(QWidget):
         layout.addWidget(self.cover_label, alignment=Qt.AlignHCenter)
 
         self._raw_title = title
+        self._base_subtitle = subtitle
         self.title_label = QLabel(elide_two_lines(title, self.fontMetrics(), 186))
         self.title_label.setObjectName("cardTitle")
         self.title_label.setAlignment(Qt.AlignLeft | Qt.AlignTop)
@@ -215,6 +216,20 @@ class GameCard(QWidget):
         # la jaquette se « décolle » de la carte pendant le défilement.
         self._fade.finished.connect(lambda: self.cover_label.setGraphicsEffect(None))
         self._fade.start(QPropertyAnimation.DeleteWhenStopped)
+
+    def set_igdb_metadata(self, metadata):
+        """Ajoute année, genres et studio sous le titre quand IGDB a un match."""
+        if not metadata:
+            return
+        self.igdb_metadata = metadata
+        year = metadata.get("release_date", "")[:4]
+        details = [value for value in (year, ", ".join(metadata.get("genres", []))) if value]
+        if metadata.get("developers"):
+            details.append(", ".join(metadata["developers"][:2]))
+        suffix = " · ".join(details)
+        text = " · ".join(value for value in (self._base_subtitle, suffix) if value)
+        self.meta_label.setText(self.fontMetrics().elidedText(text, Qt.ElideRight, 186))
+        self.meta_label.setToolTip(text)
 
     # -- Survol : zoom jaquette + bordure accentuée --------------------
 

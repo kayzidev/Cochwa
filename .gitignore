@@ -60,3 +60,29 @@ desktop.ini
 *.bak
 *.orig
 *.rej
+
+# --- Charte graphique et planche (privées — source de vérité visuelle interne) ---
+CHARTE_GRAPHIQUE.md
+PlancheGraphique.png
+.cursor/rules/charte-graphique.mdc
+
+# --- Audits (privés) ---
+/AUDIT_*.md
+/docs/AUDIT_STATUS.md
+/docs/audits/
+
+# --- Documentation interne (privée) ---
+/CURRENT_STATE.md
+/PROJECT_HANDOFF.md
+/docs/TECH_DEBT.md
+/docs/MIGRATION.md
+/docs/IMPLEMENTATION.md
+/docs/history/
+
+# --- Captures et visuels (privés) ---
+*.png
+/docs/validation/
+
+# --- Markdown supplémentaire (privé — seul le README public reste visible) ---
+*.md
+!/README.md

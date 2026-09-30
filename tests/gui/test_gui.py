@@ -375,7 +375,32 @@ def test_emulators_filter_across_consoles_without_switching_library(window):
     window.navigate("emulators")
     page = window.tab_emulators
     page.platform.setCurrentText("GameCube")
-    assert "1 projets" in page.status.text()
+    assert "1 projet" in page.status.text()
     assert window.console.id == "ps2"
     page.query.setText("no matching emulator")
     assert "0 projets" in page.status.text()
+
+
+def test_emulators_brand_grid_and_combined_filters(window, qtbot):
+    from PySide6.QtWidgets import QLabel
+
+    window.navigate("emulators")
+    page = window.tab_emulators
+    qtbot.waitUntil(lambda: page.grid.viewport().width() >= 750)
+    assert len(page.grid.cards) == 22
+    assert page.grid.flow.itemAtPosition(0, 2).widget() is page.grid.cards[2]
+    artwork = page.grid.cards[0].findChildren(QLabel)[0]
+    assert not artwork.pixmap().isNull()
+
+    page.manufacturer.setCurrentText("Sony")
+    page.decade.setCurrentText("Années 2000")
+    page.processor.setCurrentText("128 bits")
+    assert [card.accessibleName().split(" · ")[0] for card in page.grid.cards] == ["PCSX2"]
+    with patch.object(page, "configure") as configure:
+        menu = page.grid.cards[0].findChildren(QPushButton)[-1].menu()
+        next(
+            action for action in menu.actions() if action.text().startswith("Configurer")
+        ).trigger()
+        configure.assert_called_once_with("ps2")
+    page.processor.setCurrentText("x86")
+    assert not page.grid.cards

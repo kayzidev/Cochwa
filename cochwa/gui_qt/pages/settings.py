@@ -107,6 +107,25 @@ class SettingsPage(QWidget):
         content.addWidget(panel)
 
         panel, box = section(
+            "Métadonnées des jeux · IGDB",
+            "IGDB complète automatiquement les fiches affichées. Configurez un Twitch Client ID et un Client Secret créés depuis une application Twitch Developer. Les identifiants restent dans votre configuration locale.",
+        )
+        self._form = self._make_form()
+        box.addLayout(self._form)
+        self._row("igdb_client_id", "Twitch Client ID", app.config.igdb_client_id)
+        self._row(
+            "igdb_client_secret",
+            "Twitch Client Secret",
+            app.config.igdb_client_secret,
+            password=True,
+        )
+        self.values["igdb_client_id"].setPlaceholderText(
+            "Facultatif · créer une application Twitch"
+        )
+        self.values["igdb_client_secret"].setPlaceholderText("Facultatif")
+        content.addWidget(panel)
+
+        panel, box = section(
             "Steam & diagnostic",
             "Préparez les préréglages et synchronisez vos jeux depuis Cochwa. Steam reste à fermer et rouvrir manuellement.",
         )
@@ -261,13 +280,18 @@ class SettingsPage(QWidget):
             dict(config.console_launchers),
             config.download_dir,
             config.steamgrid_api_key,
+            config.igdb_client_id,
+            config.igdb_client_secret,
         )
         try:
             config.console_dirs = dirs
             config.console_launchers = launchers
             config.download_dir = download_dir
             config.steamgrid_api_key = self.values["key"].text().strip()
+            config.igdb_client_id = self.values["igdb_client_id"].text().strip()
+            config.igdb_client_secret = self.values["igdb_client_secret"].text().strip()
             config.save()
+            self.app.metadata.configure(config.igdb_client_id, config.igdb_client_secret)
             self.app.tab_library.ready.refresh()
             self.app.covers.results.clear()
             self.app.tab_library.refresh()
@@ -279,7 +303,10 @@ class SettingsPage(QWidget):
                 config.console_launchers,
                 config.download_dir,
                 config.steamgrid_api_key,
+                config.igdb_client_id,
+                config.igdb_client_secret,
             ) = previous
+            self.app.metadata.configure(config.igdb_client_id, config.igdb_client_secret)
             self.app.error(str(exc))
 
     def open_srm(self):
