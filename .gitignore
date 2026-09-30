@@ -81,6 +81,7 @@ PlancheGraphique.png
 
 # --- Captures et visuels (privés) ---
 *.png
+!/docs/screenshots/cochwa-emulators.png
 /docs/validation/
 
 # --- Markdown supplémentaire (privé — seul le README public reste visible) ---

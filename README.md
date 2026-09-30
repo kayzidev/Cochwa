@@ -1,123 +1,102 @@
 # Cochwa
 
-Bibliothèque de ROMs pour Linux : PS2 et Nintendo Switch, recherche Internet Archive (et MiNERVA pour la PS2), téléchargements vérifiés et reprenables, jaquettes, lanceurs par console et préréglages Steam ROM Manager générés depuis Cochwa.
+**Votre bibliothèque de jeux rétro, simplement.** Cochwa vous aide à rechercher,
+organiser et lancer vos jeux sur Linux, avec une interface graphique et une CLI.
+La gestion intégrée des jeux est actuellement disponible pour PlayStation 2 et
+Nintendo Switch.
 
-## Contenu hébergé : aucun
+![Capture réelle de la page Émulateurs de Cochwa](docs/screenshots/cochwa-emulators.png)
 
-Cochwa **n'héberge aucun lien ni aucun contenu**. Le logiciel interroge des catalogues publics (Internet Archive, MiNERVA) et renvoie vers leurs pages ; les téléchargements s'effectuent directement entre l'utilisateur et ces services tiers. Cochwa ne contient aucune ROM, aucun lien vers des ROMs et aucune clé de contournement.
+## Ce que vous pouvez faire
 
-## Démarrer sur cette machine
+- Parcourir votre bibliothèque et retrouver vos jeux installés.
+- Rechercher des jeux et consulter leurs informations et jaquettes.
+- Organiser vos jeux en collections sans déplacer les fichiers.
+- Découvrir des recommandations et des classements pour chaque plateforme.
+- Télécharger et vérifier des fichiers proposés par Internet Archive.
+- Repérer vos émulateurs, enregistrer leur emplacement et les lancer depuis Cochwa.
+- Utiliser IGDB en option pour enrichir le catalogue et ses métadonnées.
+- Piloter les fonctions principales depuis le terminal.
 
-Les wrappers existants `romget` et `romget-gui` restent compatibles (alias des entry points `cochwa` / `cochwa-gui`). Depuis le projet :
+## Cochwa n’héberge aucun jeu
+
+Cochwa est un logiciel local. Il ne fournit, n’héberge ni ne distribue de ROM ou
+de fichier de jeu. Les recherches et téléchargements passent par des services
+tiers ; lorsqu’un téléchargement est disponible, il est effectué depuis la
+source concernée vers votre ordinateur. Vous devez disposer des droits
+nécessaires pour les fichiers que vous utilisez.
+
+## Installation
+
+Prérequis : Linux, Python 3.11 ou plus récent, et `venv`/`pip`.
+
+Depuis un terminal, dans le dossier du projet :
 
 ```bash
-./install.sh            # crée .venv et installe le paquet (GUI PySide6 inclus)
-./run.sh                # GUI
-./run.sh --cli doctor    # diagnostic local, sans réseau ni affichage de clé
+./install.sh
+./run.sh
 ```
 
-Sur une nouvelle installation : Python ≥ 3.11 avec venv/pip, puis `./install.sh`. Le script crée `.venv` et installe le paquet (requests, Pillow, PySide6) sans modifier Python système. La conversion optionnelle requiert `chdman` ; le lancement requiert un émulateur/configuration PCSX2 déjà fonctionnels.
+Le script installe Cochwa dans un environnement Python isolé du système. Pour
+ouvrir directement la version terminal :
+
+```bash
+source .venv/bin/activate
+.venv/bin/cochwa --help
+```
+
+Pour lancer les jeux, installez et configurez vous-même l’émulateur adapté. La
+conversion optionnelle d’images disque demande également `chdman`.
 
 ## Configuration
 
-Le fichier existant `~/.config/romget/config.toml` est lu sans migration destructive (repli automatique sur l'ancien dossier XDG `romget` s'il existe ; les nouvelles installations utilisent `~/.config/cochwa/`). Pour une installation neuve, les dossiers par défaut sont `~/Games/roms/ps2`, `$XDG_CACHE_HOME/cochwa` et `$XDG_STATE_HOME/cochwa` (ou leurs valeurs usuelles). Le dossier ROMs doit exister avant un téléchargement. La GUI permet de choisir le dossier, le lanceur PCSX2 et une clé SteamGridDB puis de les enregistrer. La clé reste locale ; aucun secret par défaut.
+Dans **Paramètres**, choisissez vos dossiers de jeux et configurez les lanceurs
+disponibles. Vous pouvez aussi ajouter vos identifiants IGDB pour accéder à son
+catalogue et à ses métadonnées. Les identifiants sont enregistrés dans votre
+configuration locale.
 
-Un fichier alternatif s'utilise avec `cochwa --config /chemin/config.toml …` ou `cochwa-gui --config /chemin/config.toml`.
-
-## CLI
-
-```bash
-cochwa search 'gran turismo 4' --region Europe --language Fr
-cochwa search 'final fantasy x' --source minerva
-cochwa search 'god of war 2' --source ia_redump
-cochwa search 'gran turismo 4' --page 2 --limit 20
-cochwa inspect IDENTIFIANT_IA
-cochwa download IDENTIFIANT_IA --file 'Nom exact.iso' --dry-run
-cochwa download IDENTIFIANT_IA --file 'Nom exact.iso'
-cochwa download IDENTIFIANT_IA --file 'Disque.cue' --file 'Piste.bin' --enqueue
-cochwa jobs list
-cochwa jobs run
-cochwa jobs resume ID_TACHE
-cochwa list --query 'Gran Turismo'
-cochwa verify '/chemin/jeu.iso'
-cochwa verify '/chemin/dossier-avec-manifeste'
-cochwa convert '/chemin/jeu.iso' --media dvd
-cochwa play '/chemin/jeu.chd'
-cochwa add-steam
-cochwa --json doctor
-```
-
-`--all` sélectionne explicitement tous les fichiers d'un item, y compris ses différentes éditions. `--chd --media cd|dvd` permet la conversion après un téléchargement CLI. `--enqueue` enregistre seulement la tâche ; la GUI ou `jobs run` l'exécute. `--json`, `--config` et `--verbose` précèdent la commande. Codes : 0 succès, 1 échec d'opération, 2 arguments/configuration invalides, 130 interruption.
-
-La recherche interroge les sources activées en parallèle. MiNERVA ouvre une fiche torrent à utiliser dans un client externe ; la file de téléchargement Cochwa reste réservée à Internet Archive. `--limit` s’applique par source.
-
-## Interface par plateforme
-
-Le sélecteur de console adapte la bibliothèque, la recherche, les recommandations,
-le Top, les téléchargements et les paramètres. Le Top Switch est une sélection
-éditoriale distincte des scores indicatifs du Top PS2.
-
-La recherche Switch est disponible dans l’interface graphique : NSP/XCI directs
-sur Internet Archive et fiches externes pour les archives explicitement identifiées.
-Les mises à jour et DLC identifiables ne sont pas proposés comme jeux de base.
-Les empreintes IA servent au contrôle du transfert, sans identification Redump.
-Les commandes CLI de recherche/téléchargement restent PS2 dans cette version.
-
-Téléchargements : bouton **Supprimer** ou clic droit → **Supprimer**. Un transfert
-actif est arrêté ; l’entrée est retirée de la liste et les fichiers sur disque sont conservés.
-
-## Comportements importants
-
-- Aucun fichier existant non reconnu n'est écrasé. Les fragments `.part` ne sont pas des jeux installés.
-- Une reprise contrôle HTTP 200/206/416 et vérifie taille et SHA-1/MD5 disponible avant publication. Sans empreinte source, l'état reste « taille contrôlée ».
-- « Hash source reconnu Redump » décrit les métadonnées distantes ; ce n'est pas encore la vérification d'un fichier local.
-- Chaque sélection possède une destination stable et distincte. Les jeux déjà présents ne sont pas déplacés ; Europe, versions et mods restent séparés.
-- Un CUE exige ses pistes sélectionnées. Les archives ZIP/7z ne sont pas extraites automatiquement.
-- La conversion vérifie le CHD et conserve **tous** les originaux. Pour un ISO, choisir explicitement CD ou DVD. Un CUE utilise CD.
-- La fermeture suspend le téléchargement actif ; sa reprise reste explicite. Une seule instance possède le moteur de transfert ; les autres peuvent consulter la file.
-- Paramètres → Configurer mes consoles dans Steam : aperçu, installation sauvegardée des parseurs PS2/Switch, puis synchronisation via SRM. Les parseurs personnels sont préservés ; ceux qui couvrent les mêmes dossiers peuvent être désactivés explicitement dans l’assistant. Steam et SRM doivent être fermés manuellement avant la synchronisation.
-- Le datfile Redump reste configurable ; sa source historique utilise HTTP. Le mode hors ligne accepte un cache périmé avec un état explicite.
-
-## Développement
+Cochwa conserve ses réglages et son cache dans les dossiers utilisateur Linux
+prévus à cet effet. Pour utiliser un autre fichier de réglages :
 
 ```bash
-python3 -m pip install -e '.[dev]'   # dans un environnement virtuel
-ruff check cochwa tests tools
-ruff format --check cochwa tests tools
-python3 -m unittest discover -s tests -v
-QT_QPA_PLATFORM=offscreen python3 -m pytest tests/gui -v  # sans affichage
-python3 -m build
+cochwa --config /chemin/vers/config.toml doctor
 ```
 
-La CI exécute les tests sur Python 3.11/3.14, les tests GUI Qt en mode offscreen, le lint et la construction.
+## Utiliser la CLI
 
-## Organisation
+```bash
+# Afficher toutes les commandes
+cochwa --help
 
-```text
-cochwa/
-  models.py             # modèles sérialisables
-  config.py             # TOML, validation, chemins XDG (repli romget)
-  consoles.py           # registre des consoles (base multiconsole)
-  infrastructure/       # HTTP, écritures atomiques, verrous, chemins
-  services/             # recherche, transfert, conversion, file, bibliothèque/index
-  api/                  # Redump, SteamGridDB, façade historique IA
-  providers/            # contrat de source et adaptateur de compatibilité
-  gui_qt/               # PySide6 : sidebar, pages, dialogues, workers, thème
-  cli.py                # commandes du même cœur applicatif
-tests/                  # régressions métier, CLI et GUI
-.github/workflows/      # validation automatique
-docs/                  # architecture et notes internes (non publiées)
-tools/                 # contrôles manuels ciblés
+# Rechercher un jeu PS2
+cochwa search "gran turismo 4"
+
+# Parcourir la bibliothèque locale
+cochwa list --query "gran turismo"
+
+# Vérifier un fichier ou un dossier de jeu
+cochwa verify /chemin/vers/jeu.iso
+
+# Vérifier la configuration de l’application
+cochwa doctor
 ```
 
-### Collections et émulateurs
+Chaque commande propose ses options avec `cochwa <commande> --help`. Depuis le
+wrapper du projet, ajoutez `--cli`, par exemple `./run.sh --cli doctor`.
 
-La barre latérale propose **Collections**, **Émulateurs** et **Outils**. Créez des
-collections par console et sélectionnez leurs jeux sans déplacer les ROMs.
-Dans Émulateurs, filtrez les 22 projets par console, consultez leur site officiel
-ou choisissez un exécutable installé (y compris AppImage). Cochwa mémorise ce
-chemin et propose l’ouverture depuis **Prêt à jouer** dans la bibliothèque.
-Les binaires accessibles dans le PATH et les déploiements Flatpak usuels sont détectés.
-Les lanceurs PS2/Switch existants restent en place ; leur réglage reste accessible
-depuis la fiche de l’émulateur. Le catalogue couvre d’autres consoles, tandis que
-la gestion intégrée des ROMs reste PS2/Switch.
+## Catalogue et classement
+
+IGDB peut fournir des informations et des notes de critiques lorsque vous
+configurez l’accès dans les paramètres. Les classements indiquent la source de
+leurs notes ; une note IGDB n’est pas un score Metacritic. Les recommandations
+et les résultats dépendent du catalogue disponible pour la plateforme.
+
+## Aide et contributions
+
+Consultez les commandes avec `cochwa --help` et les réglages dans **Paramètres**.
+Les alias historiques `romget` et `romget-gui` restent disponibles pour les
+installations qui les utilisent déjà.
+
+## Description courte pour GitHub
+
+> Bibliothèque de jeux rétro pour Linux : recherche, organisation et émulateurs PS2/Switch. Cochwa n’héberge aucun jeu.

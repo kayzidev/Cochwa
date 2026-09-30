@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cochwa"
 version = "0.2.0"
-description = "Cochwa — bibliothèque de ROMs, transferts vérifiés et intégration PCSX2 / Steam ROM Manager"
+description = "Bibliothèque de jeux rétro pour Linux : recherche, organisation et émulateurs PS2/Switch. Aucun jeu hébergé."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
